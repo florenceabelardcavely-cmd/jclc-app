@@ -2343,7 +2343,7 @@ function MusicienTab({user,st,church}){
 
           {/* Liste des chants */}
           {(activeProg.items||activeProg.songs||[]).map((item,idx)=>{
-            const sid=item.songId||item.id;
+            const sid=item.songId||item.id||("item-"+idx);
             const songData=getSong(sid,item.title||item.songTitle);
             const origKey=item.key||songData.key||"Do";
             const dispKey=getKey(sid,origKey);
