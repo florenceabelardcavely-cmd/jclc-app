@@ -1676,7 +1676,13 @@ export default function App() {
         if(lm.length)n.members.lognes=lm;
         if(sngs.length)n.songs=sngs;
         plans.forEach(p=>{if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);});
-        if(progs.length)n.programs=progs.map(p=>({...p,pages:p.pages||[]}));
+        if(progs.length)n.programs=progs.map(p=>{
+          let items=p.items||p.songs||[];
+          if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
+          let pages=p.pages||1;
+          if(typeof pages==="string"){try{pages=JSON.parse(pages);}catch{pages=1;}}
+          return{...p,items,pages};
+        });
         return n;
       });
     })();
@@ -2043,8 +2049,7 @@ export default function App() {
 //  BOTTOM NAV
 // ══════════════════════════════════════════════════
 function BottomNav({tabs,tab,setTab}){
-  const shown=tabs.slice(0,5);
-  return(<nav className="bottom-nav">{shown.map(t=>(<button key={t.id} className={`bnav-btn${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}><span className="bni">{t.i}</span><span className="bnl">{t.l}</span></button>))}</nav>);
+  return(<nav className="bottom-nav" style={{overflowX:"auto",overflowY:"hidden"}}>{tabs.map(t=>(<button key={t.id} className={`bnav-btn${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)} style={{flexShrink:0,minWidth:56}}><span className="bni">{t.i}</span><span className="bnl">{t.l}</span></button>))}</nav>);
 }
 
 // ══════════════════════════════════════════════════
