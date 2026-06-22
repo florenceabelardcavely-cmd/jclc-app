@@ -995,15 +995,141 @@ const SONGS0 = [
 ];
 
 // ══ Utilitaires ══
-function transposeChord(chord,st){
-  const m=chord.match(/^(Do#?|Ré#?|Mi|Fa#?|Sol#?|La#?|Si|Réb|Mib|Solb|Lab|Sib)(m?)$/);
-  if(!m)return chord;
-  let idx=NOTES.indexOf(m[1]);
-  if(idx===-1){const r=NOTE_MAP[m[1]];if(!r)return chord;idx=NOTES.indexOf(r);}
-  return NOTES[(idx+12+st)%12]+m[2];
+// ══ ChordPro Engine ══
+const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si"};
+const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
+
+function noteToIdx(note){
+  let n=note.replace(/m$|7$|maj7$|sus[24]?$|add[0-9]+$|dim$|aug$/g,"");
+  let i=FR_NOTES.indexOf(n);
+  if(i>=0)return{idx:i,lang:"fr"};
+  if(FR_ALT[n]){i=FR_NOTES.indexOf(FR_ALT[n]);if(i>=0)return{idx:i,lang:"fr"};}
+  i=EN_NOTES.indexOf(n);
+  if(i>=0)return{idx:i,lang:"en"};
+  if(EN_ALT[n]){i=EN_NOTES.indexOf(EN_ALT[n]);if(i>=0)return{idx:i,lang:"en"};}
+  return null;
 }
-function transposeLine(line,st){if(st===0)return line;return line.replace(/[A-SÉa-s][a-z#éèb]*m?/g,c=>transposeChord(c,st));}
-function semit(from,to){const a=NOTES.indexOf(from.replace(/m$/,"")),b=NOTES.indexOf(to.replace(/m$/,""));if(a===-1||b===-1)return 0;return(b-a+12)%12;}
+
+function transposeChord(chord,st,targetLang){
+  const frPat=/^(Do#?|Réb?#?|Mib?|Fa#?|Solb?#?|Lab?#?|Sib?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
+  const enPat=/^([A-G][b#]?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
+  let root="",suffix="",lang="fr",rest="";
+  let mm=chord.match(frPat);
+  if(mm&&mm[1]){root=mm[1];suffix=mm[2]||"";rest=chord.slice(mm[0].length);lang="fr";}
+  else{mm=chord.match(enPat);if(mm&&mm[1]){root=mm[1];suffix=mm[2]||"";rest=chord.slice(mm[0].length);lang="en";}}
+  if(!root)return chord;
+  let bass="";
+  if(rest.startsWith("/")){
+    const bm=rest.slice(1).match(frPat)||rest.slice(1).match(enPat);
+    if(bm&&bm[1])bass="/"+transposeChord(rest.slice(1),st,targetLang||lang);
+    else bass=rest;
+    rest="";
+  }
+  const r=noteToIdx(root);
+  if(!r)return chord;
+  const newIdx=(r.idx+12+st)%12;
+  const outLang=targetLang||lang;
+  const newRoot=(outLang==="en"?EN_NOTES:FR_NOTES)[newIdx];
+  return newRoot+suffix+bass+rest;
+}
+
+function transposeLine(line,st,lang){
+  if(st===0&&!lang)return line;
+  return line.replace(/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
+    const r=noteToIdx(c.split("/")[0]);
+    return r?transposeChord(c,st,lang):c;
+  });
+}
+
+function parseChordPro(text){
+  const lines=text.split("\n");
+  let title="",key="",author="",tempo="",categorie="";
+  const sections=[];
+  let curSection=null;
+  for(let raw of lines){
+    const line=raw.trimEnd();
+    const dir=line.match(/^\{(\w+):\s*(.*)\}$/);
+    if(dir){
+      const[,k,v]=dir;
+      const kl=k.toLowerCase();
+      if(kl==="title"||kl==="t")title=v;
+      else if(kl==="key")key=v;
+      else if(kl==="artist"||kl==="author")author=v;
+      else if(kl==="tempo")tempo=v;
+      else if(kl==="categorie"||kl==="category")categorie=v;
+      else if(kl==="start_of_verse"||kl==="sov"){curSection={label:v||"Couplet",lines:[]};sections.push(curSection);}
+      else if(kl==="start_of_chorus"||kl==="soc"){curSection={label:v||"Refrain",lines:[]};sections.push(curSection);}
+      else if(kl==="start_of_bridge"||kl==="sob"){curSection={label:v||"Pont",lines:[]};sections.push(curSection);}
+      else if(/^end_of/.test(kl)){curSection=null;}
+      continue;
+    }
+    if(!line.trim()){if(curSection&&curSection.lines.length>0)curSection=null;continue;}
+    if(line.includes("[")){
+      if(!curSection){curSection={label:sections.length===0?"Intro":"Section "+(sections.length+1),lines:[]};sections.push(curSection);}
+      let cl="",ll="";
+      const parts=line.split(/(\[[^\]]+\])/);
+      for(const p of parts){
+        const cm=p.match(/^\[([^\]]+)\]$/);
+        if(cm){while(cl.length<ll.length)cl+=" ";cl+=cm[1]+" ";}
+        else{ll+=p;while(ll.length<cl.length)ll+=" ";}
+      }
+      if(cl.trim())curSection.lines.push({k:"chord",t:cl.trimEnd()});
+      if(ll.trim()||cl.trim())curSection.lines.push({k:"lyric",t:ll.trimEnd()});
+    }else{
+      if(!curSection){curSection={label:sections.length===0?"Couplet 1":"Section "+(sections.length+1),lines:[]};sections.push(curSection);}
+      curSection.lines.push({k:"lyric",t:line});
+    }
+  }
+  return{title,key,author,tempo,categorie,sections};
+}
+
+function toChordPro(song){
+  let out="";
+  out+=`{title: ${song.title}}\n`;
+  if(song.key)out+=`{key: ${song.key}}\n`;
+  if(song.author)out+=`{artist: ${song.author}}\n`;
+  if(song.tempo)out+=`{tempo: ${song.tempo}}\n`;
+  if(song.categorie)out+=`{categorie: ${song.categorie}}\n`;
+  out+="\n";
+  for(const sec of(song.sections||[])){
+    const lbl=(sec.label||"").toLowerCase();
+    const isChorus=lbl.includes("refrain")||lbl.includes("chorus");
+    const isBridge=lbl.includes("pont")||lbl.includes("bridge");
+    if(isChorus)out+=`{start_of_chorus: ${sec.label}}\n`;
+    else if(isBridge)out+=`{start_of_bridge: ${sec.label}}\n`;
+    else out+=`{start_of_verse: ${sec.label}}\n`;
+    const lines=sec.lines||[];
+    for(let i=0;i<lines.length;i++){
+      const l=lines[i];
+      if(l.k==="chord"){
+        const next=lines[i+1];
+        if(next&&next.k==="lyric"){
+          const chords=[];const re=/(\S+)/g;let m;
+          while((m=re.exec(l.t))!==null)chords.push({chord:m[1],pos:m.index});
+          let result="";let lastPos=0;
+          for(const{chord,pos}of chords){const lp=Math.min(pos,next.t.length);result+=next.t.slice(lastPos,lp)+`[${chord}]`;lastPos=lp;}
+          result+=next.t.slice(lastPos);
+          out+=(result||next.t)+"\n";i++;
+        }else{out+=l.t+"\n";}
+      }else if(l.k==="lyric"){out+=l.t+"\n";}
+    }
+    if(isChorus)out+="{end_of_chorus}\n\n";
+    else if(isBridge)out+="{end_of_bridge}\n\n";
+    else out+="{end_of_verse}\n\n";
+  }
+  return out;
+}
+
+function semit(from,to){
+  const fr=(from||"").replace(/m$/,"");
+  const to2=(to||"").replace(/m$/,"");
+  const a=FR_NOTES.indexOf(fr)!==-1?FR_NOTES.indexOf(fr):EN_NOTES.indexOf(fr);
+  const b=FR_NOTES.indexOf(to2)!==-1?FR_NOTES.indexOf(to2):EN_NOTES.indexOf(to2);
+  if(a===-1||b===-1)return 0;
+  return(b-a+12)%12;
+}
 function uid(){return Math.random().toString(36).slice(2,9);}
 function dk(d){return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}
 function fmt(d){return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
@@ -2977,37 +3103,87 @@ function playNote(noteName){
 }
 
 function SongViewModal({song,onClose}){
-  const [curKey,setCurKey]=useState(song.key);
-  const st_=semit(song.key,curKey);
+  const [curKey,setCurKey]=useState(song.key||"Do");
+  const [notation,setNotation]=useState("fr");
+  const [presentMode,setPresentMode]=useState(false);
+  const [fontSize,setFontSize]=useState(14);
   const printRef=useRef();
+  const st_=semit(song.key||"Do",curKey);
   function handleKeyClick(k){setCurKey(k);playNote(k);}
-  function print(){const w=window.open("","_blank");w.document.write(`<html><head><title>${song.title}</title><style>body{font-family:monospace;font-size:13px;line-height:1.9;padding:32px;max-width:700px;}h1{font-size:18px;font-weight:700;text-decoration:underline;margin-bottom:18px;}.s{font-style:italic;font-weight:700;margin:12px 0 3px;}.c{color:#CC1F00;font-weight:700;white-space:pre;}.l{white-space:pre;}</style></head><body>${printRef.current.innerHTML}</body></html>`);w.document.close();w.print();}
+  function exportCho(){
+    const cp=toChordPro(song);
+    const blob=new Blob([cp],{type:"text/plain"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=song.title.replace(/[^a-zA-Z0-9]/g,"_")+".cho";
+    a.click();
+  }
+  function print(){
+    const w=window.open("","_blank");
+    w.document.write(`<html><head><title>${song.title}</title><style>*{box-sizing:border-box;}body{font-family:monospace;font-size:13px;line-height:1.8;padding:28px;max-width:800px;margin:0 auto;}h1{font-size:17px;font-weight:700;text-decoration:underline;margin-bottom:4px;font-family:serif;}.meta{font-size:11px;color:#666;margin-bottom:18px;}.sec{margin-bottom:18px;}.sec-lbl{font-style:italic;font-weight:700;margin-bottom:4px;font-size:12px;}.chord{color:#CC1F00;font-weight:700;white-space:pre;font-size:12px;line-height:1.4;}.lyric{white-space:pre;font-size:13px;line-height:1.6;}@media print{body{padding:16px;}}</style></head><body><h1>${song.title}${curKey!==song.key?" (Ton. "+curKey+")":""}</h1><div class="meta">${[song.author,song.tempo?"♩ "+song.tempo+" BPM":"",song.categorie].filter(Boolean).join(" · ")}</div>${(song.sections||[]).map(sec=>`<div class="sec"><div class="sec-lbl">${sec.label}</div>${(sec.lines||[]).map(l=>l.k==="chord"?`<div class="chord">${transposeLine(l.t,st_,notation==="en"?"en":undefined)}</div>`:`<div class="lyric">${l.t}</div>`).join("")}</div>`).join("")}</body></html>`);
+    w.document.close();w.print();
+  }
+  if(presentMode){
+    return(
+      <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#fff",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,padding:"12px 20px",background:"rgba(0,0,0,.4)",borderBottom:"1px solid rgba(255,255,255,.1)"}}>
+          <div style={{flex:1,fontWeight:700,fontSize:16}}>{song.title} <span style={{fontWeight:400,fontSize:13,opacity:.7}}>({curKey})</span></div>
+          <button className="btn btn-g btn-sm" onClick={()=>setFontSize(f=>Math.max(12,f-2))}>A−</button>
+          <button className="btn btn-g btn-sm" onClick={()=>setFontSize(f=>Math.min(36,f+2))}>A+</button>
+          <button className="btn btn-p btn-sm" onClick={()=>setPresentMode(false)}>✕ Quitter</button>
+        </div>
+        <div style={{flex:1,overflow:"auto",padding:"24px 40px",display:"flex",flexWrap:"wrap",gap:32,alignContent:"flex-start"}}>
+          {(song.sections||[]).map((sec,si)=>(
+            <div key={si} style={{minWidth:280,maxWidth:420}}>
+              <div style={{fontSize:fontSize*0.8,fontWeight:700,fontStyle:"italic",opacity:.6,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{sec.label}</div>
+              {(sec.lines||[]).map((line,li)=>(
+                line.k==="chord"
+                  ?<div key={li} style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.85,whiteSpace:"pre",lineHeight:1.4}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                  :<div key={li} style={{fontSize,whiteSpace:"pre",lineHeight:1.7,color:"#f1f5f9"}}>{line.t}</div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return(
-    <div className="modal" style={{width:640,maxWidth:"95vw"}}>
-      <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:18}}>
+    <div className="modal" style={{width:680,maxWidth:"95vw"}}>
+      <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14}}>
         <div style={{flex:1}}>
           <div className="modal-t">{song.title}</div>
-          <div className="modal-s">
-            Tonalité de base : <strong>{song.key}</strong>
-            {song.author&&` · ${song.author}`}
-            {song.tempo&&` · ♩ ${song.tempo} BPM`}
-            {song.categorie&&` · ${song.categorie}`}
-          </div>
+          <div className="modal-s">Tonalité : <strong>{curKey}</strong>{song.author&&` · ${song.author}`}{song.tempo&&` · ♩ ${song.tempo} BPM`}{song.categorie&&` · ${song.categorie}`}</div>
         </div>
+        <button className="btn btn-g btn-sm no-print" title="Présentation plein écran" onClick={()=>setPresentMode(true)}>⛶</button>
+        <button className="btn btn-g btn-sm no-print" onClick={exportCho}>⬇ .cho</button>
         <button className="btn btn-g btn-sm no-print" onClick={print}>🖨️</button>
         <button className="btn btn-g btn-sm no-print" onClick={onClose}>✕</button>
       </div>
-      <div style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:"14px 16px",marginBottom:16}} className="no-print">
-        <div style={{fontSize:11,fontWeight:700,color:"var(--txt2)",textTransform:"uppercase",letterSpacing:".4px",marginBottom:8}}>Transposer</div>
+      <div style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:"12px 14px",marginBottom:14}} className="no-print">
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          <div style={{fontSize:11,fontWeight:700,color:"var(--txt2)",textTransform:"uppercase",letterSpacing:".4px"}}>Transposer</div>
+          <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do Ré Mi</button>
+            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C D E</button>
+          </div>
+        </div>
         <div className="kgrid">
-          {NOTES.map(k=><button key={k} className={`kbtn${curKey===k?" on":""}`} onClick={()=>handleKeyClick(k)}>{k}</button>)}
-          {NOTES_M.map(k=><button key={k} className={`kbtn${curKey===k?" on":""}`} onClick={()=>handleKeyClick(k)} style={{fontSize:11}}>{k}</button>)}
+          {(notation==="fr"?FR_NOTES:EN_NOTES).map(k=><button key={k} className={`kbtn${curKey===k?" on":""}`} onClick={()=>handleKeyClick(k)}>{k}</button>)}
         </div>
         {st_!==0&&<div style={{marginTop:8,fontSize:12,color:"var(--ind)",fontWeight:600}}>↑ Transposé de {st_} demi-ton(s) → {curKey}</div>}
       </div>
-      <div ref={printRef} style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:"16px 18px",maxHeight:360,overflowY:"auto"}}>
-        <h1 style={{fontFamily:"serif",fontSize:17,fontWeight:700,textDecoration:"underline",marginBottom:14}}>{song.title}{curKey!==song.key&&` (Ton. ${curKey})`}</h1>
-        <div className="cs">{song.sections.map((sec,si)=><div key={si} style={{marginBottom:12}}><div className="cs-s">{sec.label}</div>{sec.lines.map((line,li)=>line.k==="chord"?<div key={li} className="cs-c">{transposeLine(line.t,st_)}</div>:<div key={li} className="cs-l">{line.t}</div>)}</div>)}</div>
+      <div ref={printRef} style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:"16px 18px",maxHeight:400,overflowY:"auto"}}>
+        <div style={{fontFamily:"serif",fontSize:17,fontWeight:700,textDecoration:"underline",marginBottom:4}}>{song.title}{curKey!==song.key&&` (Ton. ${curKey})`}</div>
+        {(song.sections||[]).map((sec,si)=>(
+          <div key={si} style={{marginBottom:14}}>
+            <div className="cs-s">{sec.label}</div>
+            {(sec.lines||[]).map((line,li)=>(
+              line.k==="chord"
+                ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre"}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                :<div key={li} className="cs-l" style={{whiteSpace:"pre"}}>{line.t}</div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -3080,211 +3256,181 @@ function SongFormModal({song,onSave,onClose}){
 
 // ── IMPORT SONG MODAL (avec PDF) ──
 function ImportSongModal({onSave,onSaveMany,onClose}){
-  const [mode,setMode]=useState("pdf"); // text | image | pdf
+  const [mode,setMode]=useState("chordpro");
   const [text,setText]=useState("");
   const [loading,setLoading]=useState(false);
-  const [loadingMsg,setLoadingMsg]=useState("");
   const [err,setErr]=useState("");
-  const [preview,setPreview]=useState(null); // null | {songs:[...], selected:[true,...]}
+  const [preview,setPreview]=useState(null);
   const fileRef=useRef();
+  const choRef=useRef();
 
-  const PROMPT_MULTI=`Ce PDF contient un ou plusieurs chants chrétiens.
-Identifie TOUS les chants présents et renvoie UNIQUEMENT un tableau JSON (sans markdown) :
-[
-  {
-    "title": "Titre du chant",
-    "key": "Do",
-    "categorie": "",
-    "sections": [
-      {"label": "Couplet 1", "lines": [
-        {"k":"chord","t":"Do  Ré  Mim"},
-        {"k":"lyric","t":"paroles correspondantes"}
-      ]},
-      {"label": "Refrain", "lines": [
-        {"k":"chord","t":"Fa  Sol"},
-        {"k":"lyric","t":"paroles du refrain"}
-      ]}
-    ]
-  }
-]
-Règles importantes :
-- Chaque ligne d'accords doit être suivie immédiatement de la ligne de paroles correspondante
-- Respecte tous les labels de sections (Couplet 1, Couplet 2, Refrain, Pont, Intro, etc.)
-- La "key" est la tonalité principale (premier accord ou accord indiqué)
-- Ne mélange pas les chants entre eux
-- Inclus TOUS les chants visibles dans le PDF`;
-
-  const PROMPT_TEXT=`Analyse ce chant chrétien et renvoie UNIQUEMENT un JSON (sans markdown) :
-{"title":"...","key":"Do","categorie":"","sections":[{"label":"Couplet 1","lines":[{"k":"chord","t":"Do  Ré"},{"k":"lyric","t":"paroles"}]}]}`;
-
-  async function importFromText(){
-    if(!text.trim())return;
-    setLoading(true);setErr("");setLoadingMsg("Analyse du texte en cours…");
+  async function importChoFile(file){
+    setLoading(true);setErr("");
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:PROMPT_TEXT+"\n\nChant:\n"+text}]})});
-      const data=await res.json();
-      const txt=data.content[0].text.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(txt);
-      onSave({...parsed,tags:[],id:uid()});
-    }catch(e){setErr("Erreur lors de l'analyse. Vérifiez le format du texte.");}
-    setLoading(false);setLoadingMsg("");
-  }
-
-  async function importFromFile(file,isPdf){
-    setLoading(true);setErr("");setPreview(null);
-    setLoadingMsg(isPdf?"Lecture du PDF et détection des chants…":"Analyse de l'image…");
-    try{
-      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("Read failed"));r.readAsDataURL(file);});
-      const content_blocks=[
-        isPdf?{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}}
-             :{type:"image",source:{type:"base64",media_type:file.type,data:b64}},
-        {type:"text",text:isPdf?PROMPT_MULTI:PROMPT_TEXT}
-      ];
-      if(isPdf)setLoadingMsg("Claude analyse les accords et paroles… (peut prendre 15-30s)");
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:content_blocks}]})});
-      const data=await res.json();
-      const txt=data.content[0].text.replace(/```json|```/g,"").trim();
-      const parsed=JSON.parse(txt);
-      if(isPdf){
-        const songs=Array.isArray(parsed)?parsed:[parsed];
+      const txt=await file.text();
+      const parts=txt.split(/\{new_song\}|\{ns\}/i).filter(p=>p.trim());
+      if(parts.length>1){
+        const songs=parts.map(p=>({...parseChordPro(p),tags:[],id:uid()})).filter(s=>s.title);
         setPreview({songs,selected:songs.map(()=>true)});
       }else{
+        const parsed=parseChordPro(txt);
+        if(!parsed.title)parsed.title=file.name.replace(/\.(cho|chordpro|txt)$/i,"");
         onSave({...parsed,tags:[],id:uid()});
       }
-    }catch(e){setErr("Erreur lors de l'analyse. Réessayez ou utilisez le mode texte.");}
-    setLoading(false);setLoadingMsg("");
+    }catch(e){setErr("Erreur : "+e.message);}
+    setLoading(false);
   }
 
-  function toggleSelect(i){
-    setPreview(p=>({...p,selected:p.selected.map((v,j)=>j===i?!v:v)}));
+  function importFromText(){
+    if(!text.trim())return;
+    setErr("");
+    try{
+      const isCP=text.includes("{title:")||text.includes("{t:")||/\[[A-Za-zÀ-ÿ#b]+\]/.test(text);
+      let parsed;
+      if(isCP){
+        parsed=parseChordPro(text);
+        if(!parsed.title){const fl=text.split("\n").find(l=>l.trim()&&!l.startsWith("{"));parsed.title=fl||"Chant importé";}
+      }else{
+        const lines=text.split("\n");
+        const CR=/^([A-G][b#]?|Do#?|Réb?#?|Mib?|Fa#?|Sol[b#]?|Lab?#?|Sib?)(m(?:aj)?7?|7|sus[24]?|dim|aug)?\s/;
+        const SR=/^(couplet|refrain|pont|intro|outro|verse|chorus|bridge|interlude|fin)\s*\d*\s*:?\s*$/i;
+        let title="",key="",sections=[],cur=null;
+        for(const raw of lines){
+          const l=raw.trim();if(!l)continue;
+          if(!title){title=l;continue;}
+          if(SR.test(l)){cur={label:l.charAt(0).toUpperCase()+l.slice(1).replace(/:$/,"").trim(),lines:[]};sections.push(cur);continue;}
+          if(!cur){cur={label:"Couplet 1",lines:[]};sections.push(cur);}
+          const ic=CR.test(l+"  ");
+          if(ic&&!key)key=l.split(/\s+/)[0];
+          cur.lines.push({k:ic?"chord":"lyric",t:l});
+        }
+        if(!sections.length)sections.push({label:"Couplet 1",lines:text.split("\n").slice(1).map(l=>({k:"lyric",t:l}))});
+        parsed={title,key:key||"Do",categorie:"",sections};
+      }
+      onSave({...parsed,tags:[],id:uid()});
+    }catch(e){setErr("Erreur : "+e.message);}
   }
 
+  const PROMPT=`Ce PDF contient des chants chrétiens. Renvoie UNIQUEMENT un tableau JSON (sans markdown) : [{"title":"...","key":"Do","categorie":"","sections":[{"label":"Couplet 1","lines":[{"k":"chord","t":"Do  Ré"},{"k":"lyric","t":"paroles"}]}]}]. Inclus TOUS les chants.`;
+
+  async function importPDF(file){
+    setLoading(true);setErr("");setPreview(null);
+    try{
+      const b64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(",")[1]);r.onerror=()=>rej(new Error("Read failed"));r.readAsDataURL(file);});
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:4000,messages:[{role:"user",content:[{type:"document",source:{type:"base64",media_type:"application/pdf",data:b64}},{type:"text",text:PROMPT}]}]})});
+      const data=await res.json();
+      if(!res.ok||!data.content?.[0])throw new Error(data.error?.message||"Erreur API");
+      const parsed=JSON.parse(data.content[0].text.replace(/```json|```/g,"").trim());
+      const songs=Array.isArray(parsed)?parsed:[parsed];
+      setPreview({songs,selected:songs.map(()=>true)});
+    }catch(e){setErr("Erreur : "+e.message);}
+    setLoading(false);
+  }
+
+  function toggleSel(i){setPreview(p=>({...p,selected:p.selected.map((v,j)=>j===i?!v:v)}));}
   function confirmImport(){
     const toImport=preview.songs.filter((_,i)=>preview.selected[i]).map(s=>({...s,tags:[],id:uid()}));
-    if(toImport.length===0){setErr("Sélectionnez au moins un chant.");return;}
+    if(!toImport.length){setErr("Sélectionnez au moins un chant.");return;}
     onSaveMany(toImport);
   }
 
   return(
     <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
       <div className="modal" style={{maxWidth:620,width:"95vw"}}>
-        <div className="modal-header">
-          <div className="modal-title">📥 Importer des chants</div>
-          <button className="modal-close" onClick={onClose}>&#x2715;</button>
-        </div>
+        <div className="modal-header"><div className="modal-title">📥 Importer des chants</div><button className="modal-close" onClick={onClose}>&#x2715;</button></div>
         <div className="modal-body">
-
-          {!preview&&<div style={{display:"flex",gap:8,marginBottom:18}}>
-            {[{v:"pdf",l:"📄 PDF (multi-chants)"},{v:"text",l:"📝 Texte"},{v:"image",l:"📷 Photo"}].map(o=>(
-              <button key={o.v} className={"btn btn-sm "+(mode===o.v?"btn-p":"btn-g")} onClick={()=>{setMode(o.v);setErr("");setPreview(null);}}>{o.l}</button>
+          {!preview&&<div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            {[{v:"chordpro",l:"🎸 ChordPro (.cho)"},{v:"text",l:"📝 Texte"},{v:"pdf",l:"📄 PDF"}].map(o=>(
+              <button key={o.v} className={"btn btn-sm "+(mode===o.v?"btn-p":"btn-g")} onClick={()=>{setMode(o.v);setErr("");setText("");}}>{o.l}</button>
             ))}
           </div>}
 
-          {/* ── PDF MODE ── */}
-          {mode==="pdf"&&!preview&&(
-            <>
-              <div style={{background:"rgba(99,102,241,.12)",border:"1px solid rgba(99,102,241,.3)",borderRadius:10,padding:"12px 16px",marginBottom:16,fontSize:13,color:"rgba(255,255,255,.8)"}}>
-                💡 Importe un PDF complet de culte — tous les chants sont détectés et tu choisis lesquels ajouter à la bibliothèque.
+          {mode==="chordpro"&&!preview&&(
+            <div>
+              <div style={{background:"var(--sur2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13}}>
+                💡 Importe des fichiers <strong>.cho</strong> ou <strong>.chordpro</strong>. Supporte aussi les accords entre crochets <code>[Am]Amazing [F]grace</code>.
               </div>
-              <div style={{border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:40,textAlign:"center",cursor:loading?"default":"pointer",background:"rgba(255,255,255,.04)"}}
-                onClick={()=>!loading&&fileRef.current?.click()}>
-                <div style={{fontSize:48,marginBottom:12}}>📄</div>
-                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>
-                  {loading?loadingMsg:"Sélectionner un fichier PDF"}
-                </div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,.4)"}}>
-                  {loading?"":"Fichiers PDF de culte (ex: CULTE_LOGNES_03_05_2026.pdf)"}
-                </div>
-                {loading&&<div style={{marginTop:16}}>
-                  <div style={{width:48,height:48,border:"4px solid rgba(99,102,241,.3)",borderTop:"4px solid #6366f1",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/>
-                </div>}
-                <input ref={fileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){importFromFile(f,true);fileRef.current.value="";}}}/>
+              <div style={{border:"2px dashed var(--bdr)",borderRadius:12,padding:32,textAlign:"center",cursor:"pointer",background:"var(--sur2)"}} onClick={()=>choRef.current?.click()}>
+                <div style={{fontSize:40,marginBottom:8}}>🎸</div>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{loading?"Chargement…":"Sélectionner un fichier ChordPro"}</div>
+                <div style={{fontSize:12,color:"var(--txt3)"}}>Fichiers .cho, .chordpro, .txt</div>
+                <input ref={choRef} type="file" accept=".cho,.chordpro,.txt" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){importChoFile(f);choRef.current.value="";}}}/>
               </div>
-            </>
+              <div style={{textAlign:"center",margin:"14px 0",color:"var(--txt3)",fontSize:12}}>— ou collez du texte ChordPro —</div>
+              <textarea className="inp" style={{width:"100%",height:140,fontFamily:"monospace",fontSize:12,resize:"vertical"}}
+                placeholder={"{title: Amazing Grace}\n{key: G}\n\n{start_of_verse: Couplet 1}\n[G]Amazing [C]grace how [G]sweet\n{end_of_verse}"}
+                value={text} onChange={e=>setText(e.target.value)}/>
+              {text.trim()&&<button className="btn btn-p" style={{width:"100%",marginTop:8}} onClick={importFromText}>✓ Importer</button>}
+            </div>
           )}
 
-          {/* ── PREVIEW / SELECTION ── */}
+          {mode==="text"&&!preview&&(
+            <div>
+              <div style={{background:"var(--sur2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13}}>
+                💡 Première ligne = titre. Puis sections et accords/paroles.
+              </div>
+              <textarea className="inp" style={{width:"100%",height:200,fontFamily:"monospace",fontSize:12,resize:"vertical"}}
+                placeholder={"Je chanterai de tout cœur\n\nCouplet 1\nDo        Sol\nJe chanterai de tout cœur\n…"}
+                value={text} onChange={e=>setText(e.target.value)}/>
+              {err&&<div style={{color:"var(--red)",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
+              <button className="btn btn-p" style={{width:"100%",marginTop:8}} disabled={!text.trim()} onClick={importFromText}>✓ Importer</button>
+            </div>
+          )}
+
+          {mode==="pdf"&&!preview&&(
+            <div>
+              <div style={{background:"var(--sur2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13}}>
+                💡 Importe un PDF de culte — tous les chants détectés automatiquement.
+              </div>
+              <div style={{border:"2px dashed var(--bdr)",borderRadius:12,padding:32,textAlign:"center",cursor:loading?"default":"pointer",background:"var(--sur2)"}} onClick={()=>!loading&&fileRef.current?.click()}>
+                <div style={{fontSize:40,marginBottom:8}}>📄</div>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{loading?"Analyse en cours…":"Sélectionner un fichier PDF"}</div>
+                {loading&&<div style={{marginTop:12}}><div style={{width:40,height:40,border:"4px solid rgba(99,102,241,.3)",borderTop:"4px solid #6366f1",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/></div>}
+                <input ref={fileRef} type="file" accept=".pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){importPDF(f);fileRef.current.value="";}}}/>
+              </div>
+              {err&&<div style={{color:"var(--red)",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
+            </div>
+          )}
+
           {preview&&(
             <div>
-              <div style={{background:"rgba(34,197,94,.1)",border:"1px solid rgba(34,197,94,.3)",borderRadius:10,padding:"10px 16px",marginBottom:16,fontSize:13,color:"rgba(255,255,255,.85)"}}>
-                ✅ <strong>{preview.songs.length} chant(s) détecté(s)</strong> — Coche ceux que tu veux ajouter à la bibliothèque.
+              <div style={{background:"#DCFCE7",border:"1px solid #86EFAC",borderRadius:10,padding:"10px 16px",marginBottom:12,fontSize:13,color:"#166534"}}>
+                ✅ <strong>{preview.songs.length} chant(s) détecté(s)</strong>
               </div>
-              <div style={{maxHeight:380,overflowY:"auto",display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+              <div style={{maxHeight:300,overflowY:"auto",display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
                 {preview.songs.map((s,i)=>(
-                  <div key={i} onClick={()=>toggleSelect(i)} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"12px 14px",borderRadius:10,cursor:"pointer",
-                    background:preview.selected[i]?"rgba(99,102,241,.18)":"rgba(255,255,255,.04)",
-                    border:"1.5px solid "+(preview.selected[i]?"rgba(99,102,241,.5)":"rgba(255,255,255,.1)"),
-                    transition:"all .15s"}}>
-                    <div style={{width:22,height:22,borderRadius:6,flexShrink:0,marginTop:2,
-                      background:preview.selected[i]?"#6366f1":"rgba(255,255,255,.1)",
-                      border:"2px solid "+(preview.selected[i]?"#6366f1":"rgba(255,255,255,.25)"),
-                      display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"#fff"}}>
-                      {preview.selected[i]?"✓":""}
-                    </div>
-                    <div style={{flex:1,minWidth:0}}>
-                      <div style={{fontWeight:700,fontSize:14,marginBottom:3}}>{s.title||"Sans titre"}</div>
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                        <span style={{fontSize:11,background:"rgba(255,255,255,.1)",borderRadius:4,padding:"2px 8px"}}>Ton. {s.key||"?"}</span>
-                        {s.categorie&&<span style={{fontSize:11,background:"rgba(99,102,241,.2)",borderRadius:4,padding:"2px 8px"}}>{s.categorie}</span>}
-                        <span style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{(s.sections||[]).length} section(s)</span>
+                  <div key={i} onClick={()=>toggleSel(i)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:10,cursor:"pointer",
+                    background:preview.selected[i]?"#EEF2FF":"var(--sur2)",border:"1.5px solid "+(preview.selected[i]?"#6366F1":"var(--bdr)"),transition:"all .15s"}}>
+                    <div style={{width:20,height:20,borderRadius:4,flexShrink:0,background:preview.selected[i]?"#6366f1":"var(--sur2)",border:"2px solid "+(preview.selected[i]?"#6366f1":"var(--bdr)"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff"}}>{preview.selected[i]?"✓":""}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontWeight:700,fontSize:13}}>{s.title||"Sans titre"}</div>
+                      <div style={{display:"flex",gap:6,marginTop:2}}>
+                        <span style={{fontSize:10,background:"var(--sur2)",borderRadius:4,padding:"1px 6px",border:"1px solid var(--bdr)"}}>Ton. {s.key||"?"}</span>
+                        {s.categorie&&<span style={{fontSize:10,background:"#EDE9FE",color:"#5B21B6",borderRadius:4,padding:"1px 6px"}}>{s.categorie}</span>}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:8}}>
-                <button className="btn btn-g btn-sm" onClick={()=>setPreview(p=>({...p,selected:p.songs.map(()=>true)}))}>Tout sélectionner</button>
-                <button className="btn btn-g btn-sm" onClick={()=>setPreview(p=>({...p,selected:p.songs.map(()=>false)}))}>Tout désélectionner</button>
-                <span style={{marginLeft:"auto",fontSize:12,color:"rgba(255,255,255,.5)"}}>
-                  {preview.selected.filter(Boolean).length} / {preview.songs.length} sélectionné(s)
-                </span>
+                <button className="btn btn-g btn-sm" onClick={()=>setPreview(p=>({...p,selected:p.songs.map(()=>true)}))}>Tout ✓</button>
+                <button className="btn btn-g btn-sm" onClick={()=>setPreview(p=>({...p,selected:p.songs.map(()=>false)}))}>Tout ✗</button>
+                <span style={{marginLeft:"auto",fontSize:12,color:"var(--txt3)"}}>{preview.selected.filter(Boolean).length}/{preview.songs.length}</span>
               </div>
-              {err&&<div style={{color:"#f87171",fontSize:12,marginBottom:10}}>⚠️ {err}</div>}
+              {err&&<div style={{color:"var(--red)",fontSize:12,marginBottom:8}}>⚠️ {err}</div>}
               <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-g" style={{flex:1}} onClick={()=>{setPreview(null);setErr("");}}>← Retour</button>
-                <button className="btn btn-p" style={{flex:2}} onClick={confirmImport}>
-                  📥 Importer {preview.selected.filter(Boolean).length} chant(s)
-                </button>
+                <button className="btn btn-g" style={{flex:1}} onClick={()=>setPreview(null)}>← Retour</button>
+                <button className="btn btn-p" style={{flex:2}} onClick={confirmImport}>✓ Ajouter {preview.selected.filter(Boolean).length} chant(s)</button>
               </div>
             </div>
           )}
 
-          {/* ── TEXT MODE ── */}
-          {mode==="text"&&!preview&&(
-            <>
-              <div className="fld">
-                <label>Copiez-collez les paroles et accords</label>
-                <textarea className="inp" rows={8} placeholder={"Couplet 1\nDo      Ré\nAu commencement était la Parole\n…"} value={text} onChange={e=>setText(e.target.value)} style={{fontFamily:"monospace",fontSize:12,resize:"vertical"}}/>
-              </div>
-              <button className="btn btn-p" style={{width:"100%"}} disabled={!text.trim()||loading} onClick={importFromText}>
-                {loading?"🔄 Analyse en cours…":"✨ Analyser avec l'IA →"}
-              </button>
-            </>
-          )}
-
-          {/* ── IMAGE MODE ── */}
-          {mode==="image"&&!preview&&(
-            <>
-              <div style={{border:"2px dashed rgba(255,255,255,.2)",borderRadius:12,padding:40,textAlign:"center",cursor:loading?"default":"pointer",background:"rgba(255,255,255,.04)"}}
-                onClick={()=>!loading&&fileRef.current?.click()}>
-                <div style={{fontSize:48,marginBottom:12}}>📷</div>
-                <div style={{fontWeight:700,fontSize:15,marginBottom:6}}>{loading?loadingMsg:"Sélectionner une photo"}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,.4)"}}>{loading?"":"JPG, PNG ou WebP"}</div>
-                {loading&&<div style={{marginTop:16}}><div style={{width:48,height:48,border:"4px solid rgba(99,102,241,.3)",borderTop:"4px solid #6366f1",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto"}}/></div>}
-                <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files[0];if(f){importFromFile(f,false);fileRef.current.value="";}}}/>
-              </div>
-            </>
-          )}
-
-          {err&&!preview&&<div style={{color:"#f87171",fontSize:12,marginTop:12}}>⚠️ {err}</div>}
-          {!preview&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><button className="btn btn-g" onClick={onClose}>Annuler</button></div>}
+          {!preview&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}><button className="btn btn-g" onClick={onClose}>Annuler</button></div>}
         </div>
       </div>
     </div>
   );
 }
-
-
 // ── PROGRAM FORM MODAL (avec pages et catégories) ──
 function ProgramFormModal({songs,program,onSave,onClose,churchId}){
   const [title,setTitle]=useState(program?.title||"");
