@@ -1543,9 +1543,8 @@ export default function App() {
       setSt(s=>{
         const n=JSON.parse(JSON.stringify(s));
         // members can belong to two churches via church2 field
-        const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
-        const cm=mbrs.filter(m=>m.church==="creil"||m.church2==="creil").map(mapM);
-        const lm=mbrs.filter(m=>m.church==="lognes"||m.church2==="lognes").map(mapM);
+        const cm=mbrs.filter(m=>m.church==="creil"||m.church2==="creil");
+        const lm=mbrs.filter(m=>m.church==="lognes"||m.church2==="lognes");
         if(cm.length)n.members.creil=cm;
         if(lm.length)n.members.lognes=lm;
         if(sngs.length)n.songs=sngs;
@@ -1612,13 +1611,7 @@ export default function App() {
     }
   }
   const deleteMember=(cid,id)=>{upd(s=>{s.members[cid]=s.members[cid].filter(m=>m.id!==id);delete s.avail[id];});sbDel("members",id);toast_("Membre supprimé","🗑️");};
-  const toggleLib=(cid,id)=>{
-    const m=st.members[cid]?.find(x=>x.id===id);
-    if(!m)return;
-    const newVal=!m.canEditLib;
-    upd(s=>{const mm=s.members[cid].find(x=>x.id===id);if(mm)mm.canEditLib=newVal;});
-    sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:newVal,can_edit_prog:m.canEditProg||false});
-  };
+  const toggleLib=(cid,id)=>{upd(s=>{const m=s.members[cid].find(x=>x.id===id);if(m)m.canEditLib=!m.canEditLib;});};
   const toggleProg=(cid,id)=>{
     upd(s=>{const m=s.members[cid].find(x=>x.id===id);if(m){m.canEditProg=!m.canEditProg;sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg});}});
   };
