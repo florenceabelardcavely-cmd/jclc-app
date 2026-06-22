@@ -3548,7 +3548,7 @@ function ProgramViewModal({program,songs,onClose}){
   return(
     <div className="modal" style={{width:700,maxWidth:"95vw"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-        <div style={{flex:1}}><div className="modal-t">{program.title}</div><div className="modal-s">{program.date&&new Date(program.date).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {program.items.length} chant(s) · {pages} page(s)</div></div>
+        <div style={{flex:1}}><div className="modal-t">{program.title}</div><div className="modal-s">{program.date&&new Date(program.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {program.items.length} chant(s) · {pages} page(s)</div></div>
         <button className="btn btn-p btn-sm no-print" onClick={print}>🖨️ Imprimer</button>
         <button className="btn btn-g btn-sm no-print" onClick={onClose}>✕</button>
       </div>
@@ -3558,7 +3558,7 @@ function ProgramViewModal({program,songs,onClose}){
           <div>
             <div style={{fontSize:10,color:"#B45309",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase"}}>Jésus-Christ Le Chemin</div>
             <div style={{fontFamily:"serif",fontSize:18,fontWeight:700,margin:"2px 0"}}>{program.title}</div>
-            <div style={{fontSize:12,color:"var(--txt2)"}}>{program.date&&new Date(program.date).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} — {program.churchId==="creil"?"Église de Creil":"Église de Lognes"}{program.notes&&` · ${program.notes}`}</div>
+            <div style={{fontSize:12,color:"var(--txt2)"}}>{program.date&&new Date(program.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} — {program.churchId==="creil"?"Église de Creil":"Église de Lognes"}{program.notes&&` · ${program.notes}`}</div>
           </div>
         </div>
         {pageItems.map((pItems,pi)=>(
