@@ -1131,7 +1131,7 @@ function semit(from,to){
   return(b-a+12)%12;
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
-function dk(d){return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;}
+function dk(d){const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${d.getFullYear()}-${mm}-${dd}`;}
 function fmt(d){return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
 function fmtSh(d){return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`;}
 
