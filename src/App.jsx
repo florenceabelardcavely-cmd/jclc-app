@@ -1620,7 +1620,11 @@ export default function App() {
     sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:newVal,can_edit_prog:m.canEditProg||false});
   };
   const toggleProg=(cid,id)=>{
-    upd(s=>{const m=s.members[cid].find(x=>x.id===id);if(m){m.canEditProg=!m.canEditProg;sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg});}});
+    const m2=st.members[cid]?.find(x=>x.id===id);
+    if(!m2)return;
+    const newVal2=!m2.canEditProg;
+    upd(s=>{const mm=s.members[cid].find(x=>x.id===id);if(mm)mm.canEditProg=newVal2;});
+    sbUpsert("members",{id:m2.id,name:m2.name,role:m2.role,roles:m2.roles||[m2.role],church:cid,church2:m2.church2||null,pin:m2.pin||"0000",can_edit_lib:m2.canEditLib||false,can_edit_prog:newVal2});
   };
 
   // Avail
@@ -2741,7 +2745,7 @@ function PlanningLognesTab({user,isAdmin}){
             return(
               <div key={i} style={{
                 borderRadius:12,padding:"14px 16px",
-                background:userIn?"rgba(99,102,241,.18)":"rgba(255,255,255,.04)",
+                background:userIn?"#EEF2FF":"var(--sur)",
                 border:"1.5px solid "+(userIn?"rgba(99,102,241,.5)":isCulte?"rgba(255,255,255,.12)":"rgba(255,170,0,.2)"),
                 transition:"all .2s"
               }}>
@@ -2764,8 +2768,8 @@ function PlanningLognesTab({user,isAdmin}){
                       return(
                         <span key={j} style={{
                           fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:isMe?700:500,
-                          background:isMe?"rgba(99,102,241,.4)":"rgba(255,255,255,.08)",
-                          color:isMe?"#e0e7ff":"rgba(255,255,255,.7)",
+                          background:isMe?"#4F46E5":"var(--sur2)",
+                          color:isMe?"#fff":"var(--txt)",
                           border:isMe?"1px solid rgba(99,102,241,.5)":"1px solid rgba(255,255,255,.1)"
                         }}>{m}</span>
                       );
