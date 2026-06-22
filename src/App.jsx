@@ -2378,12 +2378,25 @@ function MusicienTab({user,st,church}){
                     <button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const n={...k};delete n[sid];return n;})}>↺ Original ({origKey})</button>
                   )}
                 </div>
-                {/* Paroles si disponibles */}
-                {songData.lyrics&&(
+                {/* Accords et paroles ChordPro */}
+                {(songData.sections&&songData.sections.length>0)?(
+                  <div style={{marginTop:10,padding:10,background:"var(--sur2)",borderRadius:8,maxHeight:300,overflowY:"auto"}}>
+                    {songData.sections.map((sec,si)=>(
+                      <div key={si} style={{marginBottom:12}}>
+                        <div className="cs-s">{sec.label}</div>
+                        {(sec.lines||[]).map((line,li)=>(
+                          line.k==="chord"
+                            ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre",fontSize:12}}>{transposeLine(line.t,semitones)}</div>
+                            :<div key={li} className="cs-l" style={{whiteSpace:"pre",fontSize:13,lineHeight:1.7}}>{line.t}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                ):songData.lyrics?(
                   <div style={{marginTop:10,padding:10,background:"var(--sur2)",borderRadius:8,fontSize:13,whiteSpace:"pre-wrap",maxHeight:200,overflowY:"auto",lineHeight:1.6}}>
                     {songData.lyrics}
                   </div>
-                )}
+                ):null}
               </div>
             );
           })}
