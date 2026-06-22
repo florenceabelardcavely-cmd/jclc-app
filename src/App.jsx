@@ -2276,130 +2276,183 @@ function MusicienTab({user,st,church}){
   const cid=user.church||church;
   const ch=CHURCHES[cid];
   const today=new Date();today.setHours(0,0,0,0);
-  // Programmes à venir pour cette église
-  const upcomingProgs=st.programs
-    .filter(p=>p.churchId===cid&&p.date&&new Date(p.date)>=today)
-    .sort((a,b)=>new Date(a.date)-new Date(b.date));
-  // Aussi chercher dans les programmes sans churchId
-  const allProgs=st.programs
-    .filter(p=>p.date&&new Date(p.date)>=today)
-    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const upcomingProgs=st.programs.filter(p=>p.churchId===cid&&p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const allProgs=st.programs.filter(p=>p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
   const progs=upcomingProgs.length>0?upcomingProgs:allProgs;
   const [progIdx,setProgIdx]=useState(0);
   const activeProg=progs[progIdx]||null;
   const [songKeys,setSongKeys]=useState({});
-  const NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
-
-  function getKey(songId,orig){return songKeys[songId]||orig||"Do";}
-  function changeKey(songId,orig,delta){
-    const cur=getKey(songId,orig);
-    const ci=NOTES.indexOf(cur);
+  const [notation,setNotation]=useState("fr");
+  const [viewIdx,setViewIdx]=useState(null);
+  const [fontSize,setFontSize]=useState(16);
+  const [autoScroll,setAutoScroll]=useState(false);
+  const scrollRef=useRef();
+  const scrollTimer=useRef();
+  const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+  const NOTES_EN=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const CUR_NOTES=notation==="fr"?NOTES_FR:NOTES_EN;
+  function getKey(sid,orig){return songKeys[sid]||orig||"Do";}
+  function changeKey(sid,orig,delta){
+    const cur=getKey(sid,orig);
+    const ci=CUR_NOTES.indexOf(cur)!==-1?CUR_NOTES.indexOf(cur):NOTES_FR.indexOf(cur);
     if(ci===-1)return;
-    setSongKeys(k=>({...k,[songId]:NOTES[(ci+delta+12)%12]}));
+    setSongKeys(k=>({...k,[sid]:CUR_NOTES[(ci+delta+12)%12]}));
   }
+  function getSong(songId,title){return st.songs.find(s=>s.id===songId)||{title:title||"?",key:"Do",sections:[]};}
+  useEffect(()=>{
+    if(autoScroll&&scrollRef.current){scrollTimer.current=setInterval(()=>{if(scrollRef.current)scrollRef.current.scrollTop+=1;},50);}
+    else{clearInterval(scrollTimer.current);}
+    return()=>clearInterval(scrollTimer.current);
+  },[autoScroll]);
+  const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
 
-  // Récupérer les infos du chant depuis la bibliothèque
-  function getSong(songId,title){
-    return st.songs.find(s=>s.id===songId)||{title:title,key:"Do",bpm:null,category:""};
+  if(viewIdx!==null){
+    const item=items[viewIdx];
+    if(!item){setViewIdx(null);return null;}
+    const sid=item.songId||item.id||("item-"+viewIdx);
+    const songData=getSong(sid,item.title||item.songTitle);
+    const origKey=item.key||songData.key||"Do";
+    const dispKey=getKey(sid,origKey);
+    const st_=semit(origKey,dispKey);
+    return(
+      <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:"rgba(0,0,0,.5)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0}}>
+          <button className="btn btn-g btn-sm" onClick={()=>setViewIdx(null)}>← Liste</button>
+          <div style={{flex:1,textAlign:"center"}}>
+            <div style={{fontWeight:700,fontSize:15}}>{viewIdx+1}/{items.length} · {songData.title||item.title}</div>
+            <div style={{fontSize:11,opacity:.6}}>{activeProg.title} · Ton. {dispKey}</div>
+          </div>
+          <button className="btn btn-g btn-sm" disabled={viewIdx===0} onClick={()=>{setViewIdx(v=>v-1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>◀</button>
+          <button className="btn btn-g btn-sm" disabled={viewIdx===items.length-1} onClick={()=>{setViewIdx(v=>v+1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>▶</button>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"rgba(0,0,0,.3)",flexShrink:0,flexWrap:"wrap"}}>
+          <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
+          <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
+            {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700,background:dispKey===n?"#6366f1":"rgba(255,255,255,.1)",color:"#fff",border:"none",cursor:"pointer"}}>{n}</button>)}
+          </div>
+          <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
+          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
+            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do</button>
+            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C</button>
+            <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.max(12,f-2))}>A−</button>
+            <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.min(32,f+2))}>A+</button>
+            <button className={`btn btn-xs ${autoScroll?"btn-p":"btn-g"}`} onClick={()=>setAutoScroll(a=>!a)}>⏬ Auto</button>
+          </div>
+        </div>
+        <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 24px"}}>
+          {(songData.sections&&songData.sections.length>0)?(
+            <div style={{display:"flex",flexWrap:"wrap",gap:28,alignContent:"flex-start"}}>
+              {songData.sections.map((sec,si)=>(
+                <div key={si} style={{minWidth:260,maxWidth:420}}>
+                  <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
+                  {(sec.lines||[]).map((line,li)=>(
+                    line.k==="chord"
+                      ?<div key={li} style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.9,whiteSpace:"pre",lineHeight:1.3}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                      :<div key={li} style={{fontSize,whiteSpace:"pre",lineHeight:1.8,color:"#f1f5f9"}}>{line.t}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ):(
+            <div style={{fontSize,color:"#94a3b8",fontStyle:"italic",textAlign:"center",marginTop:40}}>Aucune partition disponible.</div>
+          )}
+        </div>
+        <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,.1)",flexShrink:0,overflowX:"auto"}}>
+          {items.map((it,i)=>{
+            const sd=getSong(it.songId||it.id,it.title||it.songTitle);
+            return(<button key={i} onClick={()=>{setViewIdx(i);if(scrollRef.current)scrollRef.current.scrollTop=0;}} style={{flex:"0 0 auto",padding:"8px 12px",background:i===viewIdx?"#6366f1":"transparent",color:i===viewIdx?"#fff":"rgba(255,255,255,.5)",border:"none",borderRight:"1px solid rgba(255,255,255,.05)",cursor:"pointer",fontSize:11,fontWeight:i===viewIdx?700:400,whiteSpace:"nowrap"}}>{i+1}. {(sd.title||it.title||"?").split(" ").slice(0,3).join(" ")}</button>);
+          })}
+        </div>
+      </div>
+    );
   }
 
   if(!activeProg&&progs.length===0) return(
     <div>
       <div className="ph"><div><div className="pt">🎸 Vue Musicien</div><div className="ps">{ch.fullName}</div></div></div>
-      <div className="card"><div className="empty"><div className="empty-icon">📋</div>
-        <div>Aucun programme à venir</div>
-        <div style={{fontSize:12,color:"var(--txt2)",marginTop:8}}>L'admin doit créer un programme pour que les chants apparaissent ici.</div>
-      </div></div>
+      <div className="card"><div className="empty"><div className="empty-icon">📋</div><div>Aucun programme à venir</div><div style={{fontSize:12,color:"var(--txt2)",marginTop:8}}>L'admin doit créer un programme.</div></div></div>
     </div>
   );
 
   return(
     <div>
-      <div className="ph">
-        <div><div className="pt">🎸 Vue Musicien</div><div className="ps">{ch.fullName} · Chants avec transposition</div></div>
-      </div>
-
-      {/* Sélecteur de programme */}
+      <div className="ph"><div><div className="pt">🎸 Vue Musicien</div><div className="ps">{ch.fullName} · Mode OnSong</div></div></div>
       {progs.length>1&&(
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",padding:"0 16px"}}>
           {progs.map((p,i)=>(
-            <button key={p.id||i} className={`btn btn-sm ${i===progIdx?"btn-p":"btn-g"}`} onClick={()=>setProgIdx(i)}>
-              {p.date?new Date(p.date).toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}):"—"} {p.title&&`· ${p.title}`}
+            <button key={p.id||i} className={`btn btn-sm ${i===progIdx?"btn-p":"btn-g"}`} onClick={()=>{setProgIdx(i);setViewIdx(null);}}>
+              {p.date?new Date(p.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"}):"—"}{p.title&&` · ${p.title}`}
             </button>
           ))}
         </div>
       )}
-
       {activeProg&&(
         <>
-          {/* En-tête du programme */}
-          <div className="card" style={{background:`linear-gradient(135deg,${ch.bg},white)`,border:`2px solid ${ch.color}`,margin:"0 16px 16px"}}>
-            <div style={{fontWeight:800,fontSize:18,color:ch.color}}>{activeProg.title||"Programme"}</div>
-            <div style={{fontSize:13,color:"var(--txt2)",marginTop:4}}>
-              {activeProg.date&&new Date(activeProg.date).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
-              {" · "}{(activeProg.items||activeProg.songs||[]).length} chant(s)
+          <div className="card" style={{background:`linear-gradient(135deg,${ch.bg},white)`,border:`2px solid ${ch.color}`,margin:"0 16px 16px",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:18,color:ch.color}}>{activeProg.title||"Programme"}</div>
+              <div style={{fontSize:13,color:"var(--txt2)",marginTop:4}}>{activeProg.date&&new Date(activeProg.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {items.length} chant(s)</div>
             </div>
+            <button className="btn btn-p" onClick={()=>setViewIdx(0)}>▶ Démarrer</button>
           </div>
-
-          {/* Liste des chants */}
-          {(activeProg.items||activeProg.songs||[]).map((item,idx)=>{
+          <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:12,padding:"0 16px"}}>
+            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do Ré Mi</button>
+            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C D E</button>
+          </div>
+          {items.map((item,idx)=>{
             const sid=item.songId||item.id||("item-"+idx);
             const songData=getSong(sid,item.title||item.songTitle);
             const origKey=item.key||songData.key||"Do";
             const dispKey=getKey(sid,origKey);
-            const semitones=((NOTES.indexOf(dispKey)-NOTES.indexOf(origKey))+12)%12;
+            const st_=semit(origKey,dispKey);
+            const semitones=((NOTES_FR.indexOf(dispKey)-NOTES_FR.indexOf(origKey))+12)%12;
+            const hasSections=songData.sections&&songData.sections.length>0;
             return(
-              <div key={sid||idx} className="card" style={{margin:"0 16px 12px",borderLeft:`4px solid ${ch.color}`}}>
+              <div key={sid} className="card" style={{margin:"0 16px 12px",borderLeft:`4px solid ${ch.color}`}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <div>
+                  <div style={{flex:1}}>
                     <div style={{fontWeight:700,fontSize:15}}>{idx+1}. {item.title||item.songTitle||songData.title}</div>
-                    <div style={{fontSize:12,color:"var(--txt2)",marginTop:2}}>
-                      {songData.category&&<span style={{background:"var(--sur2)",borderRadius:4,padding:"1px 6px",marginRight:6}}>{songData.category}</span>}
-                      {songData.bpm&&<span>♩ {songData.bpm} BPM</span>}
+                    <div style={{fontSize:12,color:"var(--txt2)",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {songData.categorie&&<span style={{background:"var(--sur2)",borderRadius:4,padding:"1px 6px"}}>{songData.categorie}</span>}
+                      {songData.tempo&&<span>♩ {songData.tempo} BPM</span>}
+                      {hasSections&&<span style={{color:"var(--ind)",fontSize:11}}>✓ Partition</span>}
                     </div>
                   </div>
-                  <div style={{textAlign:"center"}}>
-                    <div style={{fontSize:11,color:"var(--txt2)"}}>Tonalité</div>
-                    <div style={{fontWeight:800,fontSize:20,color:ch.color}}>{dispKey}</div>
-                    {semitones!==0&&<div style={{fontSize:10,color:"var(--txt2)"}}>{semitones>6?semitones-12:semitones>0?"+"+semitones:semitones} demi-ton{Math.abs(semitones)>1?"s":""}</div>}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                    <div style={{fontWeight:800,fontSize:22,color:ch.color}}>{dispKey}</div>
+                    {semitones!==0&&<div style={{fontSize:10,color:"var(--txt2)"}}>{semitones>6?semitones-12:semitones>0?"+"+semitones:semitones}st</div>}
+                    <button className="btn btn-p btn-xs" onClick={()=>setViewIdx(idx)}>▶ Voir</button>
                   </div>
                 </div>
-                {/* Boutons transposition */}
-                <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-                  <span style={{fontSize:11,color:"var(--txt2)",fontWeight:600}}>Transposer :</span>
+                <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap",marginBottom:hasSections?8:0}}>
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
-                  <div style={{display:"flex",gap:3,flexWrap:"wrap"}}>
-                    {NOTES.map(n=>(
-                      <button key={n} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"3px 7px",fontSize:11}} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))}>{n}</button>
-                    ))}
-                  </div>
+                  {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"2px 6px",fontSize:10}}>{n}</button>)}
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
-                  {dispKey!==origKey&&(
-                    <button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const n={...k};delete n[sid];return n;})}>↺ Original ({origKey})</button>
-                  )}
+                  {dispKey!==origKey&&<button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const n={...k};delete n[sid];return n;})}>↺ {origKey}</button>}
                 </div>
-                {/* Accords et paroles ChordPro */}
-                {(songData.sections&&songData.sections.length>0)?(
-                  <div style={{marginTop:10,padding:10,background:"var(--sur2)",borderRadius:8,maxHeight:300,overflowY:"auto"}}>
-                    {songData.sections.map((sec,si)=>(
-                      <div key={si} style={{marginBottom:12}}>
-                        <div className="cs-s">{sec.label}</div>
-                        {(sec.lines||[]).map((line,li)=>(
-                          line.k==="chord"
-                            ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre",fontSize:12}}>{transposeLine(line.t,semitones)}</div>
-                            :<div key={li} className="cs-l" style={{whiteSpace:"pre",fontSize:13,lineHeight:1.7}}>{line.t}</div>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                ):songData.lyrics?(
-                  <div style={{marginTop:10,padding:10,background:"var(--sur2)",borderRadius:8,fontSize:13,whiteSpace:"pre-wrap",maxHeight:200,overflowY:"auto",lineHeight:1.6}}>
-                    {songData.lyrics}
-                  </div>
-                ):null}
+                {hasSections&&(
+                  <details>
+                    <summary style={{fontSize:12,color:"var(--ind)",cursor:"pointer",userSelect:"none",padding:"4px 0"}}>Voir la partition</summary>
+                    <div style={{marginTop:8,padding:10,background:"var(--sur2)",borderRadius:8,maxHeight:250,overflowY:"auto"}}>
+                      {songData.sections.map((sec,si)=>(
+                        <div key={si} style={{marginBottom:12}}>
+                          <div className="cs-s">{sec.label}</div>
+                          {(sec.lines||[]).map((line,li)=>(
+                            line.k==="chord"
+                              ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre",fontSize:12}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                              :<div key={li} className="cs-l" style={{whiteSpace:"pre",fontSize:13,lineHeight:1.7}}>{line.t}</div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
             );
           })}
+          <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
+            <button className="btn btn-p" onClick={()=>setViewIdx(0)}>▶ Mode présentation plein écran</button>
+          </div>
         </>
       )}
     </div>
