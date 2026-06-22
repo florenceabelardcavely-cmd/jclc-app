@@ -1687,6 +1687,42 @@ export default function App() {
       });
     })();
   },[]);
+
+  useEffect(()=>{
+    const loadData=async()=>{
+      try{
+        const [mbrs,sngs,plans,progs]=await Promise.all([sbGet("members"),sbGet("songs"),sbGet("plannings"),sbGet("programs")]);
+        setSt(s=>{
+          const n=JSON.parse(JSON.stringify(s));
+          const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
+          const cm=mbrs.filter(m=>m.church==="creil"||m.church2==="creil").map(mapM);
+          const lm=mbrs.filter(m=>m.church==="lognes"||m.church2==="lognes").map(mapM);
+          if(cm.length)n.members.creil=cm;
+          if(lm.length)n.members.lognes=lm;
+          if(sngs.length)n.songs=sngs;
+          n.plans={creil:{},lognes:{}};
+          plans.forEach(p=>{
+            if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
+            else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
+            else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
+          });
+          if(progs.length)n.programs=progs.map(p=>{
+            let items=p.items||p.songs||[];
+            if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
+            let pages=p.pages||1;
+            if(typeof pages==="string"){try{pages=JSON.parse(pages);}catch{pages=1;}}
+            return{...p,items,pages};
+          });
+          return n;
+        });
+      }catch(e){console.error("Refresh error:",e);}
+    };
+    const interval=setInterval(loadData,30000);
+    const onVisible=()=>{if(document.visibilityState==="visible")loadData();};
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>{clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);};
+  },[]);
+
   const [user, setUser]= useState(null);
   const [loginId, setLoginId] = useState("admin");
   const [changePinModal, setChangePinModal] = useState(false);
