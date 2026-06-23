@@ -1911,7 +1911,7 @@ export default function App() {
       for(const cid of["creil","lognes"]){
         const m=st.members[cid].find(x=>x.id===loginId);
         if(m){
-          if(pin===(m.pin||"0000")){window.__jclcMemberPin=(m.pin||"0000");setUser({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:true});setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");}
+          if(pin===(m.pin||"0000")){window.__jclcMemberPin=(m.pin||"0000");setUser({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:true});setLoginPin(["","","",""]);setLoginAttempts(0);localStorage.setItem("jclc_user",JSON.stringify({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:true}));setTab("accueil");}
           else{const att=loginAttempts+1;setLoginAttempts(att);if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);setLoginPin(["","","",""]);setTimeout(()=>pinRefs[0].current?.focus(),50);}
           return;
         }
@@ -2059,7 +2059,7 @@ export default function App() {
             <span className="husr">{user.name}</span>
             <span className={`pill ${pillCls}`}>{user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
             {user.role!=="admin"&&user.role!=="pasteur"&&<button className="btn btn-g btn-sm" title="Changer mon code PIN" onClick={()=>setChangePinModal(true)}>🔐 PIN</button>}
-            <button className="btn btn-g btn-sm" onClick={()=>setUser(null)}>Déconnexion</button>
+            <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");}}>Déconnexion</button>
           </div>
         </header>
 
