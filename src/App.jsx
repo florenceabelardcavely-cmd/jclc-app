@@ -1037,7 +1037,13 @@ function transposeChord(chord,st,targetLang){
 
 function transposeLine(line,st,lang){
   if(st===0&&!lang)return line;
-  return line.replace(/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
+  const normalized=line.replace(/\b(DO|RE|RÉ|MI|FA|SOL|LA|SI)(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?\b/g,m=>{
+    const map={"DO":"Do","RE":"Ré","RÉ":"Ré","MI":"Mi","FA":"Fa","SOL":"Sol","LA":"La","SI":"Si"};
+    const base=m.replace(/(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?$/i,"").toUpperCase();
+    const suffix=m.slice(base.length).toLowerCase();
+    return (map[base]||m)+suffix;
+  });
+  return normalized.replace(/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
     const r=noteToIdx(c.split("/")[0]);
     return r?transposeChord(c,st,lang):c;
   });
@@ -1702,8 +1708,11 @@ export default function App() {
           if(lm.length)n.members.lognes=lm;
           if(sngs.length)n.songs=sngs;
           n.plans={creil:{},lognes:{}};
+          n.planService={creil:{},lognes:{}};
           plans.forEach(p=>{
             if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
+            else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
+            else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
             else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
@@ -1811,7 +1820,10 @@ export default function App() {
 
   // Planning
   const assignDate=(cid,d,ids)=>upd(s=>s.plans[cid][d]=ids);
-  const setServiceMembers=(cid,d,ids)=>upd(s=>{if(!s.planService[cid])s.planService[cid]={};s.planService[cid][d]=ids;});
+  const setServiceMembers=(cid,d,ids)=>{
+    upd(s=>{if(!s.planService[cid])s.planService[cid]={};s.planService[cid][d]=ids;});
+    sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify(ids)});
+  };
   const validate=(cid)=>{
     upd(s=>{
       s.planStatus[cid]="validated";
@@ -1826,7 +1838,7 @@ export default function App() {
     setShowFlyerModal(cid);
     toast_(`Planning ${CHURCHES[cid].name} validé ! Flyer disponible 🎉`,"🎉");
   };
-  const unvalidate=(cid)=>upd(s=>s.planStatus[cid]="draft");
+  const unvalidate=(cid)=>{upd(s=>s.planStatus[cid]="draft");sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"draft"});};
   const sendNotifs=(cid,method)=>{
     const logs=[];
     Object.entries(st.plans[cid]).forEach(([d,ids])=>{
@@ -2404,7 +2416,7 @@ function MusicienTab({user,st,church}){
         </div>
         <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 24px"}}>
           {(songData.sections&&songData.sections.length>0)?(
-            <div style={{display:"flex",flexWrap:"wrap",gap:28,alignContent:"flex-start"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:20}}>
               {songData.sections.map((sec,si)=>(
                 <div key={si} style={{minWidth:260,maxWidth:420}}>
                   <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
@@ -3049,7 +3061,8 @@ function PlanningLognesTab({user,isAdmin}){
 // ══════════════════════════════════════════════════
 function RepetitionTab({st,church,isAdmin,user}){
   const ch=CHURCHES[church]||CHURCHES.lognes;
-  const [lists,setLists]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_repetitions")||"[]");}catch{return[];}});
+  const [lists,setLists]=useState([]);
+  const [loaded,setLoaded]=useState(false);
   const [selIdx,setSelIdx]=useState(null);
   const [showNew,setShowNew]=useState(false);
   const [newTitle,setNewTitle]=useState("");
@@ -3057,7 +3070,23 @@ function RepetitionTab({st,church,isAdmin,user}){
   const [editNoteIdx,setEditNoteIdx]=useState(null);
   const [noteText,setNoteText]=useState("");
 
-  function save(newLists){setLists(newLists);localStorage.setItem("jclc_repetitions",JSON.stringify(newLists));}
+  useEffect(()=>{
+    sbGet("programs").then(progs=>{
+      const reps=progs.filter(p=>p.status==="repetition");
+      setLists(reps.map(p=>{
+        let songs=p.items||[];
+        if(typeof songs==="string"){try{songs=JSON.parse(songs);}catch{songs=[];}}
+        return{...p,songs};
+      }));
+      setLoaded(true);
+    });
+  },[]);
+  function save(newLists){
+    setLists(newLists);
+    newLists.forEach(l=>{
+      sbUpsert("programs",{id:l.id,title:l.title,church:l.church||church,date:l.date||new Date().toISOString().slice(0,10),pages:1,status:"repetition",items:l.songs||[],notes:l.notes||""});
+    });
+  }
 
   function createList(){
     if(!newTitle.trim())return;
@@ -3066,8 +3095,9 @@ function RepetitionTab({st,church,isAdmin,user}){
   }
 
   function deleteList(i){
-    const nl=lists.filter((_,j)=>j!==i);
+    const l=lists[i];const nl=lists.filter((_,j)=>j!==i);
     save(nl);setSelIdx(null);
+    if(l&&l.id)sbDel("programs",l.id);
   }
 
   function addSong(song){
