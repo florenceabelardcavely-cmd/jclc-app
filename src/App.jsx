@@ -2140,7 +2140,7 @@ export default function App() {
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
-          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} M={M} deleteProg={deleteProg}/>}
+          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
           {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
@@ -2902,10 +2902,20 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 // ══════════════════════════════════════════════════
 //  PROGRAMMES TAB
 // ══════════════════════════════════════════════════
-function ProgrammesTab({st,church,M,deleteProg}){
-  const ch=CHURCHES[church],progs=st.programs.filter(p=>p.churchId===church);
+function ProgrammesTab({st,church,church2,M,deleteProg}){
+  const [activeChurch,setActiveChurch]=useState(church);
+  const ch=CHURCHES[activeChurch],progs=st.programs.filter(p=>p.churchId===activeChurch);
   return(
     <div>
+      {church2&&CHURCHES[church2]&&(
+        <div style={{display:"flex",gap:8,padding:"0 16px 12px"}}>
+          {[church,church2].map(cid=>(
+            <button key={cid} className={`btn btn-sm ${activeChurch===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch(cid)}>
+              {CHURCHES[cid].fullName}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ph">
         <div><div className="pt">Programmes</div><div className="ps">{ch.fullName} · Feuilles avec accords · 3 pages max · 2 chants min/page</div></div>
         <button className="btn btn-p btn-sm" onClick={M.addProg}>+ Créer</button>
