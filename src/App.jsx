@@ -2131,7 +2131,7 @@ export default function App() {
           {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch}/>}
           {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
           {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
-          {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
+          {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={isAdmin?church:myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
           {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} M={M} deleteProg={deleteProg}/>}
@@ -2631,7 +2631,11 @@ function DispoTab({user,isAdmin,st,church,year,month,prevMonth,nextMonth,toggleA
 // ══════════════════════════════════════════════════
 //  PLANNING TAB
 // ══════════════════════════════════════════════════
-function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validate,unvalidate}){
+function PlanningTab({st,church,year:initYear,month:initMonth,prevMonth:_pm,nextMonth:_nm,isAvail,M,validate,unvalidate}){
+  const [year,setYear]=useState(initYear);
+  const [month,setMonth]=useState(initMonth);
+  const prevMonth=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
+  const nextMonth=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
   const ch=CHURCHES[church],plan=st.plans[church],mk=`${year}-${String(month+1).padStart(2,"0")}`,status=st.planStatus[church]?.[mk]||"draft",members=st.members[church];
   const [showFlyer,setShowFlyer]=useState(false);
   const dates=getDates(year,month,church);
