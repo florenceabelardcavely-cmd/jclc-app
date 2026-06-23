@@ -2702,7 +2702,7 @@ function CalendarTab({user,isAdmin,church,st,year,month,prevMonth,nextMonth}){
       <div className="pt" style={{marginBottom:4}}>Calendrier</div>
       <div className="ps" style={{marginBottom:16}}>{isAdmin?"Vue d'ensemble des deux églises":"Votre planning mensuel"}</div>
       {!isAdmin&&st.planStatus[church]!=="validated"&&<div className="ib amb">⏳ Planning non encore validé.</div>}
-      {isAdmin&&<div style={{display:"flex",gap:14,marginBottom:14}}>{churches.map(cid=><div key={cid} style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600}}><span style={{width:10,height:10,borderRadius:"50%",background:CHURCHES[cid].color,display:"inline-block"}}/>{CHURCHES[cid].fullName}<span className={`bdg ${st.planStatus[cid]==="validated"?"bdg-val":"bdg-draft"}`} style={{fontSize:10,padding:"2px 8px"}}>{st.planStatus[cid]==="validated"?"Validé":"Brouillon"}</span></div>)}</div>}
+      {isAdmin&&<div style={{display:"flex",gap:14,marginBottom:14}}>{churches.map(cid=><div key={cid} style={{display:"flex",alignItems:"center",gap:7,fontSize:12,fontWeight:600}}><span style={{width:10,height:10,borderRadius:"50%",background:CHURCHES[cid].color,display:"inline-block"}}/>{CHURCHES[cid].fullName}<span className={`bdg ${st.planStatus[cid]?.[mk]==="validated"?"bdg-val":"bdg-draft"}`} style={{fontSize:10,padding:"2px 8px"}}>{st.planStatus[cid]?.[mk]==="validated"?"Validé":"Brouillon"}</span></div>)}</div>}
       <div className="mnav">
         <button className="btn btn-g btn-sm" onClick={prevMonth}>←</button>
         <span className="mnavt">{MONTHS[month]} {year}</span>
