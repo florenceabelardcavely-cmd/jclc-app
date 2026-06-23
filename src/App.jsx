@@ -1799,12 +1799,12 @@ export default function App() {
 
   // Avail
   const toggleAvail=(mid,d)=>{
-    upd(s=>{if(!s.avail[mid])s.avail[mid]={};if(s.avail[mid][d])delete s.avail[mid][d];else s.avail[mid][d]=true;});
-    setSt(s=>{
-      const avObj=s.avail[mid]||{};
-      sbUpsert("plannings",{id:mid+"_avail",member_id:mid,church:"lognes",date:"availability",availability:JSON.stringify(avObj)});
-      return s;
-    });
+    const curAvail=st.avail[mid]||{};
+    const newAvail={...curAvail};
+    if(newAvail[d])delete newAvail[d];else newAvail[d]=true;
+    upd(s=>{s.avail[mid]=newAvail;});
+    const memberChurch=st.members.creil.find(m=>m.id===mid)?.church||st.members.lognes.find(m=>m.id===mid)?.church||"lognes";
+    sbUpsert("plannings",{id:mid+"_avail",member_id:mid,church:memberChurch,date:"availability",availability:JSON.stringify(newAvail)});
   };
   const isAvail=(mid,d)=>!!st.avail[mid]?.[d];
 
