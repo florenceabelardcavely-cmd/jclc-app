@@ -2910,7 +2910,7 @@ function ProgrammesTab({st,church,M,deleteProg}){
                 {" · "}{p.items.length} chant(s) sur {p.pages||1} page(s)
               </div>
             </div>
-            <button className="btn btn-amb btn-sm" onClick={()=>M.flyer(p)}>🖼️ Flyer</button>
+            
             <button className="btn btn-p btn-sm" onClick={()=>M.viewProg(p)}>📄 Imprimer</button>
             <button className="btn btn-g btn-sm" onClick={()=>M.editProg(p)}>✏️</button>
             <button className="btn btn-d btn-xs btn-ic" onClick={()=>deleteProg(p.id)}>🗑</button>
