@@ -3815,16 +3815,19 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
 
           {mode==="url"&&!preview&&(
             <div>
-              <div style={{background:"var(--sur2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13}}>
-                💡 Colle un lien vers un site de chants — Claude extrait les accords et paroles automatiquement.
+              <div style={{background:"#EEF2FF",border:"1px solid #C7D2FE",borderRadius:10,padding:"14px 16px",marginBottom:14,fontSize:13}}>
+                <div style={{fontWeight:700,marginBottom:8}}>📋 Comment importer depuis un site</div>
+                <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                  <div>1️⃣ Ouvre le site du chant (accords.app, paroles-et-accords.com...)</div>
+                  <div>2️⃣ Sélectionne tout le texte de la page (<strong>Cmd+A</strong> puis <strong>Cmd+C</strong>)</div>
+                  <div>3️⃣ Colle dans l'onglet <strong>📝 Texte</strong> — Claude détecte les accords automatiquement</div>
+                </div>
               </div>
-              <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <input className="inp" style={{flex:1}} placeholder="https://accords.app/..." value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!loading&&url.trim()&&importFromUrl()}/>
-                <button className="btn btn-p" disabled={!url.trim()||loading} onClick={importFromUrl}>{loading?"⏳":"🔍"}</button>
+              <div style={{background:"#FFF7ED",border:"1px solid #FED7AA",borderRadius:10,padding:"12px 16px",fontSize:13}}>
+                <div style={{fontWeight:700,marginBottom:4}}>💡 Astuce</div>
+                <div>Sur <strong>accords.app</strong> : clique sur "Afficher les accords" avant de copier pour avoir les accords et les paroles ensemble.</div>
               </div>
-              {loading&&<div style={{textAlign:"center",padding:16}}><div style={{width:32,height:32,border:"4px solid rgba(99,102,241,.3)",borderTop:"4px solid #6366f1",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 8px"}}/><div style={{fontSize:12,color:"var(--txt2)"}}>{loadingMsg}</div></div>}
-              {err&&<div style={{color:"var(--red)",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
-              <div style={{marginTop:10,fontSize:11,color:"var(--txt3)"}}>Sites : accords.app, paroles-et-accords.com, ultimate-guitar.com...</div>
+              <button className="btn btn-p" style={{width:"100%",marginTop:14}} onClick={()=>setMode("text")}>→ Aller dans l'onglet Texte</button>
             </div>
           )}
 
