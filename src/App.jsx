@@ -3747,20 +3747,11 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
     setLoading(true);setErr("");setPreview(null);
     setLoadingMsg("Lecture de la page...");
     try{
-      const proxyUrl=`https://corsproxy.io/?${encodeURIComponent(url.trim())}`;
-      const pageRes=await fetch(proxyUrl);
-      if(!pageRes.ok)throw new Error("Impossible de lire cette page");
-      const html=await pageRes.text();
-      const div=document.createElement("div");
-      div.innerHTML=html;
-      div.querySelectorAll("script,style,nav,footer,header,aside").forEach(el=>el.remove());
-      const pageText=div.innerText||div.textContent||"";
-      if(pageText.length<100)throw new Error("Page vide ou inaccessible");
-      setLoadingMsg("Claude analyse le chant... (10-20s)");
+      setLoadingMsg("Claude lit la page... (10-20s)");
       const res=await fetch("https://api.anthropic.com/v1/messages",{
         method:"POST",
         headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:3000,messages:[{role:"user",content:`URL: ${url}\n\nContenu:\n${pageText.slice(0,8000)}\n\n${PROMPT_URL}`}]})
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:3000,messages:[{role:"user",content:[{type:"text",text:`Visite cette URL et extrais le chant chrétien : ${url.trim()}\n\n${PROMPT_URL}`}]}]})
       });
       const data=await res.json();
       if(!res.ok||!data.content?.[0])throw new Error(data.error?.message||"Erreur API");
