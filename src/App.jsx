@@ -1772,6 +1772,9 @@ export default function App() {
   const canSongs = user && (isAdmin || user.canEditLib===true);
   const canProgs = user && (isAdmin || user.canEditProg===true);
   const myChurch = isAdmin ? church : (user?.church||"creil");
+  const [activeChurch2, setActiveChurch2] = useState(null); // null = église principale
+  const myChurch2 = isAdmin ? church : (activeChurch2 || user?.church || "creil");
+  const hasChurch2 = !isAdmin && user?.church2 && CHURCHES[user.church2];
 
   function toast_(msg,icon="✅"){setToast({msg,icon});clearTimeout(toastRef.current);toastRef.current=setTimeout(()=>setToast(null),3200);}
   function upd(fn){setSt(s=>{const n=JSON.parse(JSON.stringify(s));fn(n);return n;});}
@@ -2157,6 +2160,16 @@ export default function App() {
         </header>
 
         <nav className="nav">{tabs.map(t=><button key={t.id} className={`nbtn${tab===t.id?" on":""}`} onClick={()=>setTab(t.id)}>{t.i} {t.l}</button>)}</nav>
+        {hasChurch2&&(
+          <div style={{display:"flex",gap:6,padding:"6px 16px",background:"var(--sur2)",borderBottom:"1px solid var(--bdr)"}}>
+            <span style={{fontSize:11,color:"var(--txt3)",alignSelf:"center"}}>Assemblée :</span>
+            {[user.church,user.church2].map(cid=>(
+              <button key={cid} className={`btn btn-xs ${myChurch2===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch2(cid)}>
+                {CHURCHES[cid]?.name}
+              </button>
+            ))}
+          </div>
+        )}
 
         <main className="main">
           {isAdmin&&["disponibilites","planning","calendrier","notifications","programmes","statistiques"].includes(tab)&&(
@@ -2176,17 +2189,17 @@ export default function App() {
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
           {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
-          {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch}/>}
-          {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
+          {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch2}/>}
+          {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch2} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
           {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
-          {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
+          {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch2} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
           {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
           {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
-          {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch} isAdmin={isAdmin} user={user}/>}
+          {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>}
         </main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
