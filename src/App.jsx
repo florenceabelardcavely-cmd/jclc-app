@@ -1420,6 +1420,7 @@ const INIT = {
   avail:      {},
   plans:      { creil:{}, lognes:{} },
   planStatus: { creil:"draft", lognes:"draft" },
+  validatedMonths: { creil:{}, lognes:{} },
   planService:{ creil:{}, lognes:{} }, // membres sélectionnés pour service
   notifLog:   [],
   songs:      SONGS0,
@@ -1687,6 +1688,7 @@ export default function App() {
           if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
           else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
           else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
+          else if(p.date==="validated_months"&&p.church){try{n.validatedMonths[p.church]=JSON.parse(p.availability||"{}");}catch{}}
           else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
         });
         if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
@@ -1720,6 +1722,7 @@ export default function App() {
             if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
             else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
             else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
+            else if(p.date==="validated_months"&&p.church){try{n.validatedMonths[p.church]=JSON.parse(p.availability||"{}");}catch{}}
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
             else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
@@ -1848,24 +1851,32 @@ export default function App() {
     });
     sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify({ids,leadId:leadId||null})});
   };
-  const validate=(cid)=>{
+  const validate=(cid,mk)=>{
+    const monthKey=mk||`${year}-${String(month+1).padStart(2,"0")}`;
     upd(s=>{
       s.planStatus[cid]="validated";
+      if(!s.validatedMonths)s.validatedMonths={creil:{},lognes:{}};
+      if(!s.validatedMonths[cid])s.validatedMonths[cid]={};
+      s.validatedMonths[cid][monthKey]=true;
+      const plan=s.plans[cid];
+      Object.values(plan).forEach(ids=>{(ids||[]).forEach(mid=>{const m=s.members[cid].find(x=>x.id===mid);if(m){if(!m.servicesCount)m.servicesCount=0;m.servicesCount++;}});});
     });
     sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"validated"});
-    upd(s=>{
-      const plan=s.plans[cid];
-      Object.values(plan).forEach(ids=>{
-        (ids||[]).forEach(mid=>{
-          const m=s.members[cid].find(x=>x.id===mid);
-          if(m){if(!m.servicesCount)m.servicesCount=0;m.servicesCount++;}
-        });
-      });
-    });
-    toast_(`Planning ${CHURCHES[cid].name} validé ! 🎉`,"🎉");
+    const newVM={...(st.validatedMonths?.[cid]||{}),[monthKey]:true};
+    sbUpsert("plannings",{id:cid+"_validated_months",member_id:cid,church:cid,date:"validated_months",availability:JSON.stringify(newVM)});
+    toast_(`Planning ${CHURCHES[cid].name} ${monthKey} validé ! 🎉`,"🎉");
     setTimeout(()=>setShowFlyerModal(cid),1500);
   };
-  const unvalidate=(cid)=>{upd(s=>s.planStatus[cid]="draft");sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"draft"});};
+  const unvalidate=(cid,mk)=>{
+    const monthKey=mk||`${year}-${String(month+1).padStart(2,"0")}`;
+    upd(s=>{
+      if(!s.validatedMonths)s.validatedMonths={creil:{},lognes:{}};
+      if(s.validatedMonths[cid])delete s.validatedMonths[cid][monthKey];
+      if(!s.validatedMonths[cid]||Object.keys(s.validatedMonths[cid]).length===0)s.planStatus[cid]="draft";
+    });
+    const newVM={...(st.validatedMonths?.[cid]||{})};delete newVM[monthKey];
+    sbUpsert("plannings",{id:cid+"_validated_months",member_id:cid,church:cid,date:"validated_months",availability:JSON.stringify(newVM)});
+  };
   const sendNotifs=(cid,method)=>{
     const logs=[];
     Object.entries(st.plans[cid]).forEach(([d,ids])=>{
@@ -2311,7 +2322,7 @@ function PermissionsTab({st,toggleLib,toggleProg}){
 // ══════════════════════════════════════════════════
 function MonPlanningTab({user,st,year,month,prevMonth,nextMonth}){
   const cid=user.church,ch=CHURCHES[cid];
-  const plan=st.plans[cid],validated=st.planStatus[cid]==="validated";
+  const plan=st.plans[cid],mk=`${year}-${String(month+1).padStart(2,"0")}`,validated=st.validatedMonths?.[cid]?.[mk]===true||st.planStatus[cid]==="validated";
   const myDates=Object.entries(plan).filter(([,ids])=>(ids||[]).includes(user.id)).map(([d])=>{const[y,m,dd]=d.split("-").map(Number);return new Date(y,m-1,dd);}).sort((a,b)=>a-b);
   const today=new Date();today.setHours(0,0,0,0);
   const upcoming=myDates.filter(d=>d>=today);
@@ -2627,7 +2638,7 @@ function DispoTab({user,isAdmin,st,church,year,month,prevMonth,nextMonth,toggleA
 //  PLANNING TAB
 // ══════════════════════════════════════════════════
 function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validate,unvalidate}){
-  const ch=CHURCHES[church],plan=st.plans[church],status=st.planStatus[church],members=st.members[church];
+  const ch=CHURCHES[church],plan=st.plans[church],mk=`${year}-${String(month+1).padStart(2,"0")}`,isValidated=st.validatedMonths?.[church]?.[mk]===true,status=isValidated?"validated":"draft",members=st.members[church];
   const [showFlyer,setShowFlyer]=useState(false);
   const dates=getDates(year,month,church);
   const assigned=Object.values(plan).filter(ids=>ids&&ids.length>0).length;
@@ -2637,7 +2648,7 @@ function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validat
         <div><div className="pt">{ch.fullName}</div><div className="ps">Cliquez sur une date pour assigner les membres</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span className={`bdg ${status==="validated"?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{status==="validated"?"Validé":"Brouillon"}</span>
-          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
+          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church,mk)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church,mk)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
         </div>
       </div>
       <div className="stats">
