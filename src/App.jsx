@@ -1513,12 +1513,12 @@ function FlyerModal({church,st,month,year,onClose}){
         {isEmpty
           ? <div style={{fontSize:"0.72rem",fontStyle:"italic",color:"#aaa"}}>À assigner</div>
           : <>
-              {members.map((m,i)=>
-                <div key={m.id} style={{fontSize:"0.75rem",fontWeight:700,paddingLeft:6,
-                  color: i===0 ? "#f5c842" : "rgba(255,255,255,.85)"}}>
-                  • {m.name.split(" ")[0]} {i===0 ? <span style={{fontSize:"0.55rem",background:"rgba(255,255,255,.2)",padding:"1px 5px",borderRadius:4,marginLeft:3}}>L</span> : null}
-                </div>
-              )}
+              {members.map((m)=>{
+                const isLead=st.planLead?.[cid]?.[`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`]===m.id;
+                return(<div key={m.id} style={{fontSize:"0.75rem",fontWeight:700,paddingLeft:6,color:isLead?"#f5c842":"rgba(255,255,255,.85)"}}>
+                  • {m.name.split(" ")[0]} {isLead?<span style={{fontSize:"0.55rem",background:"rgba(255,255,255,.2)",padding:"1px 5px",borderRadius:4,marginLeft:3}}>🎤</span>:null}
+                </div>);
+              })}
             </>
         }
       </div>
@@ -2068,7 +2068,7 @@ export default function App() {
             {modal.t==="addMember"  &&<MemberModal churchId={modal.cid} onSave={m=>{addMember(modal.cid,m);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editMember" &&<MemberModal churchId={modal.cid} member={modal.m} onSave={m=>{editMember(modal.cid,m);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="assign"     &&<AssignModal cid={modal.cid} d={modal.d} date={modal.date} type={modal.type} members={st.members[modal.cid]} isAvail={isAvail} assigned={st.plans[modal.cid][modal.d]||[]} onSave={ids=>{assignDate(modal.cid,modal.d,ids);setModal(null);toast_("Assignation sauvegardée","📋");}} onClose={()=>setModal(null)}/>}
-            {modal.t==="selectService"&&<SelectServiceModal cid={modal.cid} d={modal.d} date={modal.date} members={st.members[modal.cid]} assigned={st.plans[modal.cid][modal.d]||[]} selected={st.planService[modal.cid]?.[modal.d]||[]} onSave={(ids,leadId)=>{setServiceMembers(modal.cid,modal.d,ids,leadId);setModal(null);toast_("Membres de service sélectionnés","✅");}} onClose={()=>setModal(null)}/>}
+            {modal.t==="selectService"&&<SelectServiceModal cid={modal.cid} d={modal.d} date={modal.date} members={st.members[modal.cid]} assigned={st.plans[modal.cid][modal.d]||[]} selected={st.planService[modal.cid]?.[modal.d]||[]} leadId={st.planLead?.[modal.cid]?.[modal.d]||null} onSave={(ids,leadId)=>{setServiceMembers(modal.cid,modal.d,ids,leadId);setModal(null);toast_("Membres de service sélectionnés","✅");}} onClose={()=>setModal(null)}/>}
             {modal.t==="viewSong"   &&<SongViewModal song={modal.s} onClose={()=>setModal(null)}/>}
             {modal.t==="addSong"    &&<SongFormModal onSave={s=>{addSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editSong"   &&<SongFormModal song={modal.s} onSave={s=>{editSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
@@ -2628,6 +2628,7 @@ function DispoTab({user,isAdmin,st,church,year,month,prevMonth,nextMonth,toggleA
 // ══════════════════════════════════════════════════
 function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validate,unvalidate}){
   const ch=CHURCHES[church],plan=st.plans[church],status=st.planStatus[church],members=st.members[church];
+  const [showFlyer,setShowFlyer]=useState(false);
   const dates=getDates(year,month,church);
   const assigned=Object.values(plan).filter(ids=>ids&&ids.length>0).length;
   return(
@@ -2636,7 +2637,7 @@ function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validat
         <div><div className="pt">{ch.fullName}</div><div className="ps">Cliquez sur une date pour assigner les membres</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span className={`bdg ${status==="validated"?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{status==="validated"?"Validé":"Brouillon"}</span>
-          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church)}>✓ Valider</button>:<button className="btn btn-g btn-sm" onClick={()=>unvalidate(church)}>Modifier</button>}
+          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
         </div>
       </div>
       <div className="stats">
