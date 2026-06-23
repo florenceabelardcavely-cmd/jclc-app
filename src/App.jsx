@@ -3747,11 +3747,10 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
     setLoading(true);setErr("");setPreview(null);
     setLoadingMsg("Lecture de la page...");
     try{
-      const proxyUrl=`https://api.allorigins.win/get?url=${encodeURIComponent(url.trim())}`;
+      const proxyUrl=`https://corsproxy.io/?${encodeURIComponent(url.trim())}`;
       const pageRes=await fetch(proxyUrl);
       if(!pageRes.ok)throw new Error("Impossible de lire cette page");
-      const pageData=await pageRes.json();
-      const html=pageData.contents||"";
+      const html=await pageRes.text();
       const div=document.createElement("div");
       div.innerHTML=html;
       div.querySelectorAll("script,style,nav,footer,header,aside").forEach(el=>el.remove());
