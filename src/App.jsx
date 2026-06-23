@@ -1747,6 +1747,7 @@ export default function App() {
     try{const u=localStorage.getItem("jclc_user");return u?JSON.parse(u):null;}catch{return null;}
   });
   const [loginId, setLoginId] = useState("admin");
+  const [loginSearch, setLoginSearch] = useState("");
   const [changePinModal, setChangePinModal] = useState(false);
   const [loginPwd, setLoginPwd] = useState("");
   const [loginPin, setLoginPin] = useState(["","","",""]);
@@ -1930,23 +1931,26 @@ export default function App() {
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
-    for(const cid of["creil","lognes"]){
-      const m=st.members[cid].find(x=>x.id===loginId);
-      if(m){
-        if(enteredPin!==(m.pin||"0000")){
-          const att=loginAttempts+1;setLoginAttempts(att);
-          if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s après 3 tentatives.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}
-          else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);
-          setLoginPin(["","","",""]);
-        }else{
-          window.__jclcMemberPin=(m.pin||"0000");
-          setUser({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:m.role==="Directeur Musical (DM)"||m.role==="Pianiste"||m.role==="Batteur"||m.role==="Bassiste"||m.role==="Guitare sèche"||m.role==="Guitare électrique"||m.role==="Congas"});
-          setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
-        }
-        return;
+    const allMembers=[...st.members.creil,...st.members.lognes];
+    const seen=new Set();
+    const uniqueMembers=allMembers.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;});
+    const m=uniqueMembers.find(x=>x.id===loginId);
+    if(m){
+      if(enteredPin!==(m.pin||"0000")){
+        const att=loginAttempts+1;setLoginAttempts(att);
+        if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s après 3 tentatives.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}
+        else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);
+        setLoginPin(["","","",""]);
+      }else{
+        const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
+        const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+        window.__jclcMemberPin=(m.pin||"0000");
+        setUser(userData);localStorage.setItem("jclc_user",JSON.stringify(userData));
+        setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
       }
+      return;
     }
-    setLoginErr("Compte introuvable.");
+    setLoginErr("Compte introuvable. Vérifiez votre prénom.");
   }
 
   const isAdminLogin=loginId==="admin"||loginId==="pasteur";
@@ -1959,12 +1963,22 @@ export default function App() {
     if(!val&&i>0)pinRefs[i-1].current?.focus();
     if(val&&i===3&&np.every(d=>d!=="")){
       const pin=np.join("");
-      for(const cid of["creil","lognes"]){
-        const m=st.members[cid].find(x=>x.id===loginId);
-        if(m){
-          if(pin===(m.pin||"0000")){window.__jclcMemberPin=(m.pin||"0000");setUser({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:true});setLoginPin(["","","",""]);setLoginAttempts(0);localStorage.setItem("jclc_user",JSON.stringify({id:m.id,name:m.name,role:m.role,church:cid,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien:true}));setTab("accueil");}
-          else{const att=loginAttempts+1;setLoginAttempts(att);if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);setLoginPin(["","","",""]);setTimeout(()=>pinRefs[0].current?.focus(),50);}
-          return;
+      const allM=[...st.members.creil,...st.members.lognes];
+      const seen2=new Set();
+      const uniqM=allM.filter(m=>{if(seen2.has(m.id))return false;seen2.add(m.id);return true;});
+      const m=uniqM.find(x=>x.id===loginId);
+      if(m){
+        const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
+        if(pin===(m.pin||"0000")){
+          const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+          window.__jclcMemberPin=(m.pin||"0000");
+          setUser(userData);setLoginPin(["","","",""]);setLoginAttempts(0);
+          localStorage.setItem("jclc_user",JSON.stringify(userData));setTab("accueil");
+        }else{
+          const att=loginAttempts+1;setLoginAttempts(att);
+          if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}
+          else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);
+          setLoginPin(["","","",""]);setTimeout(()=>pinRefs[0].current?.focus(),50);
         }
       }
     }
@@ -1983,15 +1997,43 @@ export default function App() {
           <div className="ltitle">Groupe de Louange</div>
           <div className="lsub">Jésus-Christ Le Chemin</div>
 
-          <label className="llabel" style={{marginTop:8}}>Qui êtes-vous ?</label>
-          <select className="lsel" value={loginId} onChange={e=>{setLoginId(e.target.value);setLoginErr("");setLoginPwd("");setLoginPin(["","","",""]);setLoginAttempts(0);}}>
-            <optgroup label="Administration">
-              <option value="admin">Administrateur</option>
-              <option value="pasteur">Pasteur Alexandre</option>
-            </optgroup>
-            {st.members.creil.length>0&&<optgroup label="Membres — Creil">{st.members.creil.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</optgroup>}
-            {st.members.lognes.length>0&&<optgroup label="Membres — Lognes">{st.members.lognes.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</optgroup>}
-          </select>
+          <label className="llabel" style={{marginTop:8}}>Votre prénom</label>
+          <input className="lsel" type="text" placeholder="Tapez votre prénom..." value={loginSearch||""} autoComplete="off"
+            onChange={e=>{setLoginSearch(e.target.value);setLoginId("admin");setLoginErr("");setLoginPwd("");setLoginPin(["","","",""]);setLoginAttempts(0);}}
+            style={{marginBottom:8}}/>
+
+          {loginSearch&&loginSearch.length>=2&&(()=>{
+            const q=loginSearch.toLowerCase();
+            const specials=[
+              {id:"admin",name:"Administrateur",role:"admin",church:"both"},
+              {id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"}
+            ].filter(s=>s.name.toLowerCase().includes(q));
+            const allMembers=[...st.members.creil,...st.members.lognes];
+            const seen=new Set();
+            const members=allMembers.filter(m=>{if(seen.has(m.id))return false;if(m.name.toLowerCase().includes(q)){seen.add(m.id);return true;}return false;});
+            const results=[...specials,...members];
+            if(results.length===0)return<div style={{fontSize:12,color:"rgba(255,255,255,.4)",textAlign:"center",marginBottom:10}}>Aucun membre trouvé</div>;
+            return(
+              <div style={{display:"flex",flexDirection:"column",gap:4,marginBottom:12,maxHeight:180,overflowY:"auto"}}>
+                {results.map(m=>(
+                  <div key={m.id} onClick={()=>{setLoginId(m.id);setLoginSearch(m.name);setLoginErr("");setLoginPin(["","","",""]);setTimeout(()=>pinRefs[0].current?.focus(),100);}}
+                    style={{padding:"10px 14px",borderRadius:10,cursor:"pointer",
+                      background:loginId===m.id?"rgba(79,70,229,.4)":"rgba(255,255,255,.07)",
+                      border:loginId===m.id?"1.5px solid rgba(79,70,229,.7)":"1.5px solid rgba(255,255,255,.1)",
+                      transition:"all .15s",display:"flex",alignItems:"center",gap:10}}>
+                    <div style={{width:32,height:32,borderRadius:8,background:"rgba(79,70,229,.3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"#a5b4fc",flexShrink:0}}>
+                      {m.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{fontWeight:600,fontSize:13,color:"#fff"}}>{m.name}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{m.role==="admin"?"Administrateur":m.role==="pasteur"?"Pasteur":m.role||""}</div>
+                    </div>
+                    {loginId===m.id&&<div style={{marginLeft:"auto",color:"#a5b4fc",fontSize:16}}>✓</div>}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
 
           {isAdminLogin?(
             <div style={{marginBottom:14}}>
@@ -2005,7 +2047,7 @@ export default function App() {
                 </button>
               </div>
             </div>
-          ):(
+          ):loginId&&loginId!=="admin"&&loginId!=="pasteur"?(
             <div style={{marginBottom:14}}>
               <label className="llabel">Code PIN à 4 chiffres</label>
               <div style={{display:"flex",gap:10,justifyContent:"center",margin:"8px 0"}}>
@@ -2020,7 +2062,7 @@ export default function App() {
               </div>
               <div style={{fontSize:11,color:"rgba(255,255,255,.25)",textAlign:"center"}}>Code PIN fourni par l'administrateur</div>
             </div>
-          )}
+          ):null}
 
           {loginAttempts>0&&!loginLocked&&(
             <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:10}}>
