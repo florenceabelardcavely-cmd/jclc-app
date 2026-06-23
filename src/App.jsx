@@ -2188,7 +2188,7 @@ export default function App() {
           {tab==="accueil"       &&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
-          {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
+          {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} activeChurch={myChurch2}/>}
           {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch2}/>}
           {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch2} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
           {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
@@ -2375,8 +2375,8 @@ function PermissionsTab({st,toggleLib,toggleProg}){
 // ══════════════════════════════════════════════════
 //  MON PLANNING TAB
 // ══════════════════════════════════════════════════
-function MonPlanningTab({user,st,year,month,prevMonth,nextMonth}){
-  const cid=user.church,ch=CHURCHES[cid];
+function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
+  const cid=activeChurch||user.church,ch=CHURCHES[cid]||CHURCHES[user.church];
   const plan=st.plans[cid],mk=`${year}-${String(month+1).padStart(2,"0")}`,validated=st.validatedMonths?.[cid]?.[mk]===true||st.planStatus[cid]==="validated";
   const myDates=Object.entries(plan).filter(([,ids])=>(ids||[]).includes(user.id)).map(([d])=>{const[y,m,dd]=d.split("-").map(Number);return new Date(y,m-1,dd);}).sort((a,b)=>a-b);
   const today=new Date();today.setHours(0,0,0,0);
