@@ -2129,8 +2129,8 @@ export default function App() {
             {modal.t==="addSong"    &&<SongFormModal onSave={s=>{addSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editSong"   &&<SongFormModal song={modal.s} onSave={s=>{editSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="importSong" &&<ImportSongModal onSave={s=>{addSong(s);toast_("Chant importé !","📥");}} onSaveMany={songs=>{songs.forEach(s=>addSong(s));setModal(null);toast_(`${songs.length} chant(s) importé(s) !`,"📥");}} onClose={()=>setModal(null)}/>}
-            {modal.t==="addProg"    &&<ProgramFormModal songs={st.songs} churchId={myChurch} onSave={p=>{addProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
-            {modal.t==="editProg"   &&<ProgramFormModal songs={st.songs} churchId={myChurch} program={modal.p} onSave={p=>{editProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
+            {modal.t==="addProg"    &&<ProgramFormModal songs={st.songs} churchId={myChurch2} onSave={p=>{addProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
+            {modal.t==="editProg"   &&<ProgramFormModal songs={st.songs} churchId={myChurch2} program={modal.p} onSave={p=>{editProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="viewProg"   &&<ProgramViewModal program={modal.p} songs={st.songs} onClose={()=>setModal(null)}/>}
             {modal.t==="flyer"      &&<FlyerModal program={modal.p} st={st} onClose={()=>setModal(null)}/>}
             {modal.t==="memberNotif"&&<MemberNotifModal notif={modal.n} onClose={()=>{upd(s=>{const n=s.memberNotifications.find(x=>x.id===modal.n.id);if(n)n.seen=true;});setModal(null);}}/>}
