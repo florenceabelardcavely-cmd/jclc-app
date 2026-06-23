@@ -1838,9 +1838,15 @@ export default function App() {
           .forEach(r=>sbDel("plannings",r.id));
     });
   };
-  const setServiceMembers=(cid,d,ids)=>{
-    upd(s=>{if(!s.planService[cid])s.planService[cid]={};s.planService[cid][d]=ids;});
-    sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify(ids)});
+  const setServiceMembers=(cid,d,ids,leadId)=>{
+    upd(s=>{
+      if(!s.planService[cid])s.planService[cid]={};
+      s.planService[cid][d]=ids;
+      if(!s.planLead)s.planLead={};
+      if(!s.planLead[cid])s.planLead[cid]={};
+      s.planLead[cid][d]=leadId||null;
+    });
+    sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify({ids,leadId:leadId||null})});
   };
   const validate=(cid)=>{
     upd(s=>{
@@ -1856,8 +1862,8 @@ export default function App() {
         });
       });
     });
-    setShowFlyerModal(cid);
-    toast_(`Planning ${CHURCHES[cid].name} validé ! Flyer disponible 🎉`,"🎉");
+    toast_(`Planning ${CHURCHES[cid].name} validé ! 🎉`,"🎉");
+    setTimeout(()=>setShowFlyerModal(cid),1500);
   };
   const unvalidate=(cid)=>{upd(s=>s.planStatus[cid]="draft");sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"draft"});};
   const sendNotifs=(cid,method)=>{
@@ -2062,7 +2068,7 @@ export default function App() {
             {modal.t==="addMember"  &&<MemberModal churchId={modal.cid} onSave={m=>{addMember(modal.cid,m);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editMember" &&<MemberModal churchId={modal.cid} member={modal.m} onSave={m=>{editMember(modal.cid,m);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="assign"     &&<AssignModal cid={modal.cid} d={modal.d} date={modal.date} type={modal.type} members={st.members[modal.cid]} isAvail={isAvail} assigned={st.plans[modal.cid][modal.d]||[]} onSave={ids=>{assignDate(modal.cid,modal.d,ids);setModal(null);toast_("Assignation sauvegardée","📋");}} onClose={()=>setModal(null)}/>}
-            {modal.t==="selectService"&&<SelectServiceModal cid={modal.cid} d={modal.d} date={modal.date} members={st.members[modal.cid]} assigned={st.plans[modal.cid][modal.d]||[]} selected={st.planService[modal.cid]?.[modal.d]||[]} onSave={ids=>{setServiceMembers(modal.cid,modal.d,ids);setModal(null);toast_("Membres de service sélectionnés","✅");}} onClose={()=>setModal(null)}/>}
+            {modal.t==="selectService"&&<SelectServiceModal cid={modal.cid} d={modal.d} date={modal.date} members={st.members[modal.cid]} assigned={st.plans[modal.cid][modal.d]||[]} selected={st.planService[modal.cid]?.[modal.d]||[]} onSave={(ids,leadId)=>{setServiceMembers(modal.cid,modal.d,ids,leadId);setModal(null);toast_("Membres de service sélectionnés","✅");}} onClose={()=>setModal(null)}/>}
             {modal.t==="viewSong"   &&<SongViewModal song={modal.s} onClose={()=>setModal(null)}/>}
             {modal.t==="addSong"    &&<SongFormModal onSave={s=>{addSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editSong"   &&<SongFormModal song={modal.s} onSave={s=>{editSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
@@ -2306,7 +2312,7 @@ function PermissionsTab({st,toggleLib,toggleProg}){
 function MonPlanningTab({user,st,year,month,prevMonth,nextMonth}){
   const cid=user.church,ch=CHURCHES[cid];
   const plan=st.plans[cid],validated=st.planStatus[cid]==="validated";
-  const myDates=Object.entries(plan).filter(([,ids])=>(ids||[]).includes(user.id)).map(([d])=>{const[y,m,dd]=d.split("-").map(Number);return new Date(y,m,dd);}).sort((a,b)=>a-b);
+  const myDates=Object.entries(plan).filter(([,ids])=>(ids||[]).includes(user.id)).map(([d])=>{const[y,m,dd]=d.split("-").map(Number);return new Date(y,m-1,dd);}).sort((a,b)=>a-b);
   const today=new Date();today.setHours(0,0,0,0);
   const upcoming=myDates.filter(d=>d>=today);
   const monthDates=myDates.filter(d=>d.getFullYear()===year&&d.getMonth()===month);
@@ -2652,7 +2658,7 @@ function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validat
           return(<div key={d} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",border:`1.5px solid ${ids.length>0?ch.color:"transparent"}`,transition:"all .15s"}}>
             <div style={{flex:"0 0 160px"}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><span className={`atag ${getTypeCls(type)}`}>{getTypeLabel(type)}</span></div>
             <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>
-              {ids.length>0?ids.map(id=>{const m=members.find(x=>x.id===id);return m?<span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:serviceIds.includes(id)?"#DCFCE7":ch.bg,color:serviceIds.includes(id)?"#16A34A":ch.color,border:serviceIds.includes(id)?"1px solid #16A34A":"none"}}>{m.name.split(" ")[0]} · {m.role.split(" ")[0]}{serviceIds.includes(id)?" ✓":""}</span>:null;}):<span style={{fontSize:12,color:"var(--txt3)"}}>Non planifié</span>}
+              {ids.length>0?ids.map(id=>{const m=members.find(x=>x.id===id);return m?<span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:st.planLead?.[church]?.[d]===id?"#EAB308":serviceIds.includes(id)?"#16A34A":ch.bg,color:st.planLead?.[church]?.[d]===id||serviceIds.includes(id)?"#fff":ch.color,border:"none"}}>{st.planLead?.[church]?.[d]===id?"🎤 ":""}{m.name.split(" ")[0]} · {m.role.split(" ")[0]}{serviceIds.includes(id)&&st.planLead?.[church]?.[d]!==id?" ✓":""}</span>:null;}):<span style={{fontSize:12,color:"var(--txt3)"}}>Non planifié</span>}
             </div>
             <span style={{fontSize:11,color:availCnt>0?"var(--grn)":"var(--txt3)",fontWeight:600,flexShrink:0}}>{availCnt} dispo(s)</span>
             {isDraft&&<div style={{display:"flex",gap:4}}>
@@ -3462,24 +3468,26 @@ function AssignModal({cid,d,date,type,members,isAvail,assigned,onSave,onClose}){
   );
 }
 
-function SelectServiceModal({cid,d,date,members,assigned,selected,onSave,onClose}){
+function SelectServiceModal({cid,d,date,members,assigned,selected,leadId,onSave,onClose}){
   const ch=CHURCHES[cid];
   const assignedMembers=members.filter(m=>assigned.includes(m.id));
   const [sel,setSel]=useState([...selected]);
+  const [lead,setLead]=useState(leadId||null);
   const toggle=id=>setSel(s=>s.includes(id)?s.filter(x=>x!==id):[...s,id]);
   return(
     <div className="modal">
       <div className="modal-t">🎤 Membres de service</div>
-      <div className="modal-s">{fmt(date)} — Sélectionnez qui sera effectivement de service</div>
-      <div className="ib ind">Parmi les membres assignés, sélectionnez ceux qui seront présents le jour J.</div>
+      <div className="modal-s">{fmt(date)} — Sélectionnez qui sera de service et le Lead</div>
+      <div className="ib ind">Cochez les membres présents et désignez le Lead (🎤).</div>
       {assignedMembers.map(m=>(
-        <div key={m.id} className="assign-row" onClick={()=>toggle(m.id)}>
+        <div key={m.id} className="assign-row" onClick={()=>toggle(m.id)} style={{background:lead===m.id?"#FEF9C3":sel.includes(m.id)?"#F0FDF4":"var(--sur2)",border:lead===m.id?"1.5px solid #EAB308":sel.includes(m.id)?"1.5px solid #16A34A":"1.5px solid var(--bdr)"}}>
           <div className={`assign-chk${sel.includes(m.id)?" on":""}`}>{sel.includes(m.id)&&"✓"}</div>
           <div className="mav" style={{background:ch.bg,color:ch.color,width:32,height:32,fontSize:12}}>{m.name.charAt(0)}</div>
-          <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{m.name}</div><div style={{fontSize:11,color:"var(--txt2)"}}>{m.role}</div></div>
+          <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{m.name}{lead===m.id&&<span style={{marginLeft:6,fontSize:10,background:"#EAB308",color:"#fff",borderRadius:10,padding:"1px 6px"}}>🎤 Lead</span>}</div><div style={{fontSize:11,color:"var(--txt2)"}}>{m.role}</div></div>
+          <button className={`btn btn-xs ${lead===m.id?"btn-p":"btn-g"}`} onClick={e=>{e.stopPropagation();setLead(l=>l===m.id?null:m.id);if(!sel.includes(m.id))setSel(s=>[...s,m.id]);}}>🎤</button>
         </div>
       ))}
-      <div className="flex-end"><button className="btn btn-g" onClick={onClose}>Annuler</button><button className="btn btn-grn" onClick={()=>onSave(sel)}>Confirmer le service ({sel.length}) →</button></div>
+      <div className="flex-end"><button className="btn btn-g" onClick={onClose}>Annuler</button><button className="btn btn-grn" onClick={()=>onSave(sel,lead)}>Confirmer ({sel.length}) →</button></div>
     </div>
   );
 }
