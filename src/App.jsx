@@ -1419,7 +1419,7 @@ const INIT = {
   members:    { creil:[], lognes:[] },
   avail:      {},
   plans:      { creil:{}, lognes:{} },
-  planStatus: { creil:"draft", lognes:"draft" },
+  planStatus: { creil:{}, lognes:{} }, // {church: {"YYYY-MM": "validated"|"draft"}}
   planService:{ creil:{}, lognes:{} }, // membres sélectionnés pour service
   notifLog:   [],
   songs:      SONGS0,
@@ -1686,7 +1686,7 @@ export default function App() {
         plans.forEach(p=>{
           if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
           else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
-          else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
+          else if(p.date==="status"&&p.member_id&&p.church){try{const st2=JSON.parse(p.availability||"{}");if(typeof st2==="object")n.planStatus[p.church]={...n.planStatus[p.church],...st2};}catch{try{n.planStatus[p.church][p.member_id]=p.availability||"draft";}catch{}}}
           else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
         });
         if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
@@ -1719,7 +1719,7 @@ export default function App() {
           plans.forEach(p=>{
             if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
             else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
-            else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
+            else if(p.date==="status"&&p.member_id&&p.church){try{const st2=JSON.parse(p.availability||"{}");if(typeof st2==="object")n.planStatus[p.church]={...n.planStatus[p.church],...st2};}catch{try{n.planStatus[p.church][p.member_id]=p.availability||"draft";}catch{}}}
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
             else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
@@ -1848,11 +1848,11 @@ export default function App() {
     });
     sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify({ids,leadId:leadId||null})});
   };
-  const validate=(cid)=>{
+  const validate=(cid,year,month)=>{
     upd(s=>{
       s.planStatus[cid]="validated";
     });
-    sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"validated"});
+    const newStatus={...(st.planStatus[cid]||{}),[mk]:"validated"};sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:JSON.stringify(newStatus)});
     upd(s=>{
       const plan=s.plans[cid];
       Object.values(plan).forEach(ids=>{
@@ -1865,7 +1865,12 @@ export default function App() {
     toast_(`Planning ${CHURCHES[cid].name} validé ! 🎉`,"🎉");
     setTimeout(()=>setShowFlyerModal(cid),1500);
   };
-  const unvalidate=(cid)=>{upd(s=>s.planStatus[cid]="draft");sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"draft"});};
+  const unvalidate=(cid,year,month)=>{
+    const mk=`${year}-${String(month+1).padStart(2,"0")}`;
+    upd(s=>{if(!s.planStatus[cid])s.planStatus[cid]={};s.planStatus[cid][mk]="draft";});
+    const newStatus={...(st.planStatus[cid]||{}),[mk]:"draft"};
+    sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:JSON.stringify(newStatus)});
+  };
   const sendNotifs=(cid,method)=>{
     const logs=[];
     Object.entries(st.plans[cid]).forEach(([d,ids])=>{
@@ -2125,7 +2130,7 @@ export default function App() {
           {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch}/>}
           {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
-          {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
+          {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={(cid)=>validate(cid,year,month)} unvalidate={(cid)=>unvalidate(cid,year,month)}/>}
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
@@ -2156,7 +2161,7 @@ function AccueilTab({user,isAdmin,st,verset,showNotifBanner,onDismissNotif,onGoD
   const ch=CHURCHES[church];
   const nextM=new Date();nextM.setMonth(nextM.getMonth()+1);
   const totalCreil=st.members.creil.length,totalLognes=st.members.lognes.length;
-  const validated=Object.values(st.planStatus).filter(s=>s==="validated").length;
+  const curMk=`${year}-${String(month+1).padStart(2,"0")}`;const validated=Object.values(st.planStatus).filter(s=>s?.[curMk]==="validated").length;
   return(
     <div>
       {showNotifBanner&&(
@@ -2311,7 +2316,7 @@ function PermissionsTab({st,toggleLib,toggleProg}){
 // ══════════════════════════════════════════════════
 function MonPlanningTab({user,st,year,month,prevMonth,nextMonth}){
   const cid=user.church,ch=CHURCHES[cid];
-  const plan=st.plans[cid],validated=st.planStatus[cid]==="validated";
+  const plan=st.plans[cid],mk=`${year}-${String(month+1).padStart(2,"0")}`,validated=st.planStatus[cid]?.[mk]==="validated";
   const myDates=Object.entries(plan).filter(([,ids])=>(ids||[]).includes(user.id)).map(([d])=>{const[y,m,dd]=d.split("-").map(Number);return new Date(y,m-1,dd);}).sort((a,b)=>a-b);
   const today=new Date();today.setHours(0,0,0,0);
   const upcoming=myDates.filter(d=>d>=today);
@@ -2627,7 +2632,7 @@ function DispoTab({user,isAdmin,st,church,year,month,prevMonth,nextMonth,toggleA
 //  PLANNING TAB
 // ══════════════════════════════════════════════════
 function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validate,unvalidate}){
-  const ch=CHURCHES[church],plan=st.plans[church],status=st.planStatus[church],members=st.members[church];
+  const ch=CHURCHES[church],plan=st.plans[church],mk=`${year}-${String(month+1).padStart(2,"0")}`,status=st.planStatus[church]?.[mk]||"draft",members=st.members[church];
   const [showFlyer,setShowFlyer]=useState(false);
   const dates=getDates(year,month,church);
   const assigned=Object.values(plan).filter(ids=>ids&&ids.length>0).length;
