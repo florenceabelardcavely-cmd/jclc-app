@@ -3669,7 +3669,9 @@ function SongFormModal({song,onSave,onClose}){
 function ImportSongModal({onSave,onSaveMany,onClose}){
   const [mode,setMode]=useState("chordpro");
   const [text,setText]=useState("");
+  const [url,setUrl]=useState("");
   const [loading,setLoading]=useState(false);
+  const [loadingMsg,setLoadingMsg]=useState("");
   const [err,setErr]=useState("");
   const [preview,setPreview]=useState(null);
   const fileRef=useRef();
@@ -3738,6 +3740,39 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
     setLoading(false);
   }
 
+  const PROMPT_URL=`Cette page web contient un chant chrétien. Extrais le chant et renvoie UNIQUEMENT un objet JSON (sans markdown) : {"title":"...","key":"Do","author":"","categorie":"","sections":[{"label":"Couplet 1","lines":[{"k":"chord","t":"Do  Sol"},{"k":"lyric","t":"paroles"}]}]}. Inclus TOUTES les sections.`;
+
+  async function importFromUrl(){
+    if(!url.trim())return;
+    setLoading(true);setErr("");setPreview(null);
+    setLoadingMsg("Lecture de la page...");
+    try{
+      const proxyUrl=`https://api.allorigins.win/get?url=${encodeURIComponent(url.trim())}`;
+      const pageRes=await fetch(proxyUrl);
+      if(!pageRes.ok)throw new Error("Impossible de lire cette page");
+      const pageData=await pageRes.json();
+      const html=pageData.contents||"";
+      const div=document.createElement("div");
+      div.innerHTML=html;
+      div.querySelectorAll("script,style,nav,footer,header,aside").forEach(el=>el.remove());
+      const pageText=div.innerText||div.textContent||"";
+      if(pageText.length<100)throw new Error("Page vide ou inaccessible");
+      setLoadingMsg("Claude analyse le chant... (10-20s)");
+      const res=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:3000,messages:[{role:"user",content:`URL: ${url}\n\nContenu:\n${pageText.slice(0,8000)}\n\n${PROMPT_URL}`}]})
+      });
+      const data=await res.json();
+      if(!res.ok||!data.content?.[0])throw new Error(data.error?.message||"Erreur API");
+      const txt=data.content[0].text.replace(/```json|```/g,"").trim();
+      const parsed=JSON.parse(txt);
+      const songs=Array.isArray(parsed)?parsed:[parsed];
+      setPreview({songs,selected:songs.map(()=>true)});
+    }catch(e){setErr("Erreur : "+e.message+". Essayez de copier-coller le texte manuellement.");}
+    setLoading(false);setLoadingMsg("");
+  }
+
   function toggleSel(i){setPreview(p=>({...p,selected:p.selected.map((v,j)=>j===i?!v:v)}));}
   function confirmImport(){
     const toImport=preview.songs.filter((_,i)=>preview.selected[i]).map(s=>({...s,tags:[],id:uid()}));
@@ -3751,8 +3786,8 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
         <div className="modal-header"><div className="modal-title">📥 Importer des chants</div><button className="modal-close" onClick={onClose}>&#x2715;</button></div>
         <div className="modal-body">
           {!preview&&<div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            {[{v:"chordpro",l:"🎸 ChordPro (.cho)"},{v:"text",l:"📝 Texte"},{v:"pdf",l:"📄 PDF"}].map(o=>(
-              <button key={o.v} className={"btn btn-sm "+(mode===o.v?"btn-p":"btn-g")} onClick={()=>{setMode(o.v);setErr("");setText("");}}>{o.l}</button>
+            {[{v:"chordpro",l:"🎸 ChordPro (.cho)"},{v:"text",l:"📝 Texte"},{v:"url",l:"🔗 Lien web"},{v:"pdf",l:"📄 PDF"}].map(o=>(
+              <button key={o.v} className={"btn btn-sm "+(mode===o.v?"btn-p":"btn-g")} onClick={()=>{setMode(o.v);setErr("");setText("");setUrl("");}}>{o.l}</button>
             ))}
           </div>}
 
@@ -3785,6 +3820,21 @@ function ImportSongModal({onSave,onSaveMany,onClose}){
                 value={text} onChange={e=>setText(e.target.value)}/>
               {err&&<div style={{color:"var(--red)",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
               <button className="btn btn-p" style={{width:"100%",marginTop:8}} disabled={!text.trim()} onClick={importFromText}>✓ Importer</button>
+            </div>
+          )}
+
+          {mode==="url"&&!preview&&(
+            <div>
+              <div style={{background:"var(--sur2)",border:"1px solid var(--bdr)",borderRadius:10,padding:"12px 16px",marginBottom:14,fontSize:13}}>
+                💡 Colle un lien vers un site de chants — Claude extrait les accords et paroles automatiquement.
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <input className="inp" style={{flex:1}} placeholder="https://accords.app/..." value={url} onChange={e=>setUrl(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!loading&&url.trim()&&importFromUrl()}/>
+                <button className="btn btn-p" disabled={!url.trim()||loading} onClick={importFromUrl}>{loading?"⏳":"🔍"}</button>
+              </div>
+              {loading&&<div style={{textAlign:"center",padding:16}}><div style={{width:32,height:32,border:"4px solid rgba(99,102,241,.3)",borderTop:"4px solid #6366f1",borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 8px"}}/><div style={{fontSize:12,color:"var(--txt2)"}}>{loadingMsg}</div></div>}
+              {err&&<div style={{color:"var(--red)",fontSize:12,marginTop:6}}>⚠️ {err}</div>}
+              <div style={{marginTop:10,fontSize:11,color:"var(--txt3)"}}>Sites : accords.app, paroles-et-accords.com, ultimate-guitar.com...</div>
             </div>
           )}
 
