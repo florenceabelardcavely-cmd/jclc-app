@@ -1723,7 +1723,9 @@ export default function App() {
     return()=>{clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);};
   },[]);
 
-  const [user, setUser]= useState(null);
+  const [user, setUser]= useState(()=>{
+    try{const u=localStorage.getItem("jclc_user");return u?JSON.parse(u):null;}catch{return null;}
+  });
   const [loginId, setLoginId] = useState("admin");
   const [changePinModal, setChangePinModal] = useState(false);
   const [loginPwd, setLoginPwd] = useState("");
@@ -1873,7 +1875,7 @@ export default function App() {
         return;
       }
       const u=loginId==="admin"?{id:"admin",name:"Administrateur",role:"admin",church:"both"}:{id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"};
-      setUser(u);setLoginPwd("");setLoginAttempts(0);setTab("accueil");return;
+      setUser(u);localStorage.setItem("jclc_user",JSON.stringify(u));setLoginPwd("");setLoginAttempts(0);setTab("accueil");return;
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
