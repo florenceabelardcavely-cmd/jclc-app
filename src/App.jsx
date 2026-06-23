@@ -2130,7 +2130,7 @@ export default function App() {
           {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="musicien"      &&<MusicienTab user={user} st={st} church={myChurch}/>}
           {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
-          {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={(cid)=>validate(cid,year,month)} unvalidate={(cid)=>unvalidate(cid,year,month)}/>}
+          {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
           {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
@@ -2642,7 +2642,7 @@ function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validat
         <div><div className="pt">{ch.fullName}</div><div className="ps">Cliquez sur une date pour assigner les membres</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span className={`bdg ${status==="validated"?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{status==="validated"?"Validé":"Brouillon"}</span>
-          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
+          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church,year,month)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church,year,month)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
         </div>
       </div>
       <div className="stats">
