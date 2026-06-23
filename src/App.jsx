@@ -1687,7 +1687,7 @@ export default function App() {
           if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
           else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
           else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
-          else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
+          else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
         });
         if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
           let items=p.items||p.songs||[];
@@ -1715,12 +1715,13 @@ export default function App() {
           if(sngs.length)n.songs=sngs;
           n.plans={creil:{},lognes:{}};
           n.planService={creil:{},lognes:{}};
+          // Garder planStatus existant, juste mettre à jour depuis Supabase
           plans.forEach(p=>{
             if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
             else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
             else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
-            else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
+            else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
           if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
             let items=p.items||p.songs||[];
@@ -1825,7 +1826,18 @@ export default function App() {
   const isAvail=(mid,d)=>!!st.avail[mid]?.[d];
 
   // Planning
-  const assignDate=(cid,d,ids)=>upd(s=>s.plans[cid][d]=ids);
+  const assignDate=(cid,d,ids)=>{
+    upd(s=>{if(!s.plans[cid])s.plans[cid]={};s.plans[cid][d]=ids;});
+    // Sauvegarder chaque membre assigné dans Supabase
+    ids.forEach(mid=>{
+      sbUpsert("plannings",{id:cid+"_"+d+"_"+mid,member_id:mid,church:cid,date:d,availability:"assigned"});
+    });
+    // Supprimer les membres désassignés
+    sbGet("plannings").then(rows=>{
+      rows.filter(r=>r.church===cid&&r.date===d&&r.availability==="assigned"&&!ids.includes(r.member_id))
+          .forEach(r=>sbDel("plannings",r.id));
+    });
+  };
   const setServiceMembers=(cid,d,ids)=>{
     upd(s=>{if(!s.planService[cid])s.planService[cid]={};s.planService[cid][d]=ids;});
     sbUpsert("plannings",{id:cid+"_service_"+d,member_id:"service",church:cid,date:d,availability:JSON.stringify(ids)});
