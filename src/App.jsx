@@ -1676,7 +1676,7 @@ export default function App() {
         if(lm.length)n.members.lognes=lm;
         if(sngs.length)n.songs=sngs;
         plans.forEach(p=>{if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);});
-        if(progs.length)n.programs=progs.map(p=>{
+        if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church};
           let items=p.items||p.songs||[];
           if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
           let pages=p.pages||1;
@@ -1706,7 +1706,7 @@ export default function App() {
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
             else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
-          if(progs.length)n.programs=progs.map(p=>{
+          if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church};
             let items=p.items||p.songs||[];
             if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
             let pages=p.pages||1;
@@ -1835,8 +1835,19 @@ export default function App() {
   const deleteSong=id=>{upd(x=>x.songs=x.songs.filter(s=>s.id!==id));sbDel("songs",id);toast_("Chant supprimé","🗑️");};
 
   // Programs
-  const addProg=p=>{const np={...p,id:uid()};upd(x=>x.programs.push(np));sbUpsert("programs",np);toast_("Programme créé","📋");};
-  const editProg=p=>{upd(x=>{const i=x.programs.findIndex(y=>y.id===p.id);if(i>=0)x.programs[i]=p;});sbUpsert("programs",p);toast_("Programme mis à jour","✏️");};
+  const addProg=p=>{
+    const np={...p,id:uid()};
+    upd(x=>x.programs.push(np));
+    const row={id:np.id,title:np.title||"",church:np.churchId||myChurch,date:np.date||"",pages:np.pages||1,items:np.items||[],notes:np.notes||"",status:np.status||"draft"};
+    sbUpsert("programs",row);
+    toast_("Programme créé","📋");
+  };
+  const editProg=p=>{
+    upd(x=>{const i=x.programs.findIndex(y=>y.id===p.id);if(i>=0)x.programs[i]=p;});
+    const row={id:p.id,title:p.title||"",church:p.churchId||myChurch,date:p.date||"",pages:p.pages||1,items:p.items||[],notes:p.notes||"",status:p.status||"draft"};
+    sbUpsert("programs",row);
+    toast_("Programme mis à jour","✏️");
+  };
   const deleteProg=id=>{upd(x=>x.programs=x.programs.filter(p=>p.id!==id));sbDel("programs",id);toast_("Programme supprimé","🗑️");};
 
   const prevMonth=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
