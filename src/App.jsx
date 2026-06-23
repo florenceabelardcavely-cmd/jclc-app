@@ -1902,13 +1902,13 @@ export default function App() {
   const addProg=p=>{
     const np={...p,id:uid()};
     upd(x=>x.programs.push(np));
-    const row={id:np.id,title:np.title||"",church:np.churchId||myChurch,date:np.date||"",pages:np.pages||1,items:np.items||[],notes:np.notes||"",status:np.status||"draft"};
+    const row={id:np.id,title:np.title||"",church:np.churchId||np.church||myChurch,date:np.date||"",pages:np.pages||1,items:np.items||[],notes:np.notes||"",status:np.status||"draft"};
     sbUpsert("programs",row);
     toast_("Programme créé","📋");
   };
   const editProg=p=>{
     upd(x=>{const i=x.programs.findIndex(y=>y.id===p.id);if(i>=0)x.programs[i]=p;});
-    const row={id:p.id,title:p.title||"",church:p.churchId||myChurch,date:p.date||"",pages:p.pages||1,items:p.items||[],notes:p.notes||"",status:p.status||"draft"};
+    const row={id:p.id,title:p.title||"",church:p.churchId||p.church||myChurch,date:p.date||"",pages:p.pages||1,items:p.items||[],notes:p.notes||"",status:p.status||"draft"};
     sbUpsert("programs",row);
     toast_("Programme mis à jour","✏️");
   };
