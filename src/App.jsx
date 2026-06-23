@@ -1676,7 +1676,7 @@ export default function App() {
         if(lm.length)n.members.lognes=lm;
         if(sngs.length)n.songs=sngs;
         plans.forEach(p=>{if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);});
-        if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church};
+        if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
           let items=p.items||p.songs||[];
           if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
           let pages=p.pages||1;
@@ -1706,7 +1706,7 @@ export default function App() {
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
             else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
           });
-          if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church};
+          if(progs.length)n.programs=progs.map(p=>{p={...p,churchId:p.churchId||p.church_id||p.church};
             let items=p.items||p.songs||[];
             if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
             let pages=p.pages||1;
