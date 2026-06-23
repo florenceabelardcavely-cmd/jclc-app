@@ -1418,6 +1418,7 @@ const INIT = {
   notifLog:   [],
   songs:      SONGS0,
   programs:   [],
+  repetitions: [], // listes de répétition
   notifSeenMonth: null,
   memberNotifications: [], // notifications aux membres lors de leur création
 };
@@ -1993,7 +1994,7 @@ export default function App() {
 
   // ─── TABS & ROUTING ───
   const tabs = isAdmin
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"notifications",l:"Notifications",i:"🔔"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"notifications",l:"Notifications",i:"🔔"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"planning-lognes",l:"Planning",i:"📅"},{id:"faq",l:"FAQ",i:"❓"}]
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"planning-lognes",l:"Planning",i:"📅"},{id:"faq",l:"FAQ",i:"❓"}];
@@ -2093,6 +2094,7 @@ export default function App() {
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
           {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
+          {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch} isAdmin={isAdmin} user={user}/>}
         </main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
@@ -3038,6 +3040,228 @@ function PlanningLognesTab({user,isAdmin}){
       <div style={{marginTop:16,fontSize:11,color:"rgba(255,255,255,.35)",textAlign:"center"}}>
         Contact Frère Wendy pour toute demande de modification
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+//  RÉPÉTITION TAB
+// ══════════════════════════════════════════════════
+function RepetitionTab({st,church,isAdmin,user}){
+  const ch=CHURCHES[church]||CHURCHES.lognes;
+  const [lists,setLists]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_repetitions")||"[]");}catch{return[];}});
+  const [selIdx,setSelIdx]=useState(null);
+  const [showNew,setShowNew]=useState(false);
+  const [newTitle,setNewTitle]=useState("");
+  const [songSearch,setSongSearch]=useState("");
+  const [editNoteIdx,setEditNoteIdx]=useState(null);
+  const [noteText,setNoteText]=useState("");
+
+  function save(newLists){setLists(newLists);localStorage.setItem("jclc_repetitions",JSON.stringify(newLists));}
+
+  function createList(){
+    if(!newTitle.trim())return;
+    const nl=[...lists,{id:uid(),title:newTitle.trim(),date:new Date().toISOString().slice(0,10),songs:[],notes:"",church}];
+    save(nl);setSelIdx(nl.length-1);setNewTitle("");setShowNew(false);
+  }
+
+  function deleteList(i){
+    const nl=lists.filter((_,j)=>j!==i);
+    save(nl);setSelIdx(null);
+  }
+
+  function addSong(song){
+    const nl=lists.map((l,i)=>i===selIdx?{...l,songs:[...l.songs,{id:song.id,title:song.title,key:song.key,dispKey:song.key,note:""}]}:l);
+    save(nl);setSongSearch("");
+  }
+
+  function removeSong(si){
+    const nl=lists.map((l,i)=>i===selIdx?{...l,songs:l.songs.filter((_,j)=>j!==si)}:l);
+    save(nl);
+  }
+
+  function moveSong(si,dir){
+    const nl=lists.map((l,i)=>{
+      if(i!==selIdx)return l;
+      const s=[...l.songs];const ti=si+dir;
+      if(ti<0||ti>=s.length)return l;
+      [s[si],s[ti]]=[s[ti],s[si]];
+      return{...l,songs:s};
+    });
+    save(nl);
+  }
+
+  function updateSongKey(si,key){
+    const nl=lists.map((l,i)=>i===selIdx?{...l,songs:l.songs.map((s,j)=>j===si?{...s,dispKey:key}:s)}:l);
+    save(nl);
+  }
+
+  function updateSongNote(si,note){
+    const nl=lists.map((l,i)=>i===selIdx?{...l,songs:l.songs.map((s,j)=>j===si?{...s,note}:s)}:l);
+    save(nl);
+  }
+
+  function updateListNote(note){
+    const nl=lists.map((l,i)=>i===selIdx?{...l,notes:note}:l);
+    save(nl);
+  }
+
+  const activeList=selIdx!==null?lists[selIdx]:null;
+  const filtered=st.songs.filter(s=>s.title.toLowerCase().includes(songSearch.toLowerCase())).slice(0,8);
+  const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+
+  if(!activeList) return(
+    <div>
+      <div className="ph">
+        <div><div className="pt">🎼 Répétitions</div><div className="ps">{ch.fullName} · Listes de répétition</div></div>
+        <button className="btn btn-p btn-sm" onClick={()=>setShowNew(true)}>+ Nouvelle liste</button>
+      </div>
+
+      {showNew&&(
+        <div className="card" style={{margin:"0 16px 16px"}}>
+          <div style={{fontWeight:700,marginBottom:10}}>Nouvelle liste de répétition</div>
+          <input className="inp" placeholder="Ex: Répétition Dimanche 29 juin" value={newTitle} onChange={e=>setNewTitle(e.target.value)} style={{marginBottom:10}}/>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-g" onClick={()=>setShowNew(false)}>Annuler</button>
+            <button className="btn btn-p" disabled={!newTitle.trim()} onClick={createList}>Créer →</button>
+          </div>
+        </div>
+      )}
+
+      {lists.length===0?(
+        <div className="card"><div className="empty"><div className="empty-icon">🎼</div><div>Aucune liste de répétition</div><div style={{fontSize:12,color:"var(--txt2)",marginTop:8}}>Crée une liste pour organiser ta répétition.</div></div></div>
+      ):(
+        <div style={{padding:"0 16px"}}>
+          {lists.map((l,i)=>(
+            <div key={l.id} className="card" style={{marginBottom:12,cursor:"pointer",borderLeft:`4px solid ${ch.color}`}} onClick={()=>setSelIdx(i)}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:700,fontSize:15}}>{l.title}</div>
+                  <div style={{fontSize:12,color:"var(--txt2)",marginTop:2}}>
+                    {l.date&&new Date(l.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}
+                    {" · "}{l.songs.length} chant(s)
+                  </div>
+                </div>
+                <button className="btn btn-p btn-sm" onClick={e=>{e.stopPropagation();setSelIdx(i);}}>Ouvrir →</button>
+                <button className="btn btn-d btn-xs btn-ic" onClick={e=>{e.stopPropagation();if(window.confirm("Supprimer cette liste ?"))deleteList(i);}}>🗑</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  return(
+    <div>
+      <div className="ph">
+        <div>
+          <button className="btn btn-g btn-sm" onClick={()=>setSelIdx(null)} style={{marginBottom:6}}>← Listes</button>
+          <div className="pt">🎼 {activeList.title}</div>
+          <div className="ps">{activeList.date&&new Date(activeList.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})} · {activeList.songs.length} chant(s)</div>
+        </div>
+      </div>
+
+      {/* Notes générales */}
+      <div className="card" style={{margin:"0 16px 12px"}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:6,color:"var(--txt2)"}}>📝 Notes du DM</div>
+        <textarea className="inp" rows={3} placeholder="Notes pour toute l'équipe (ordre du culte, points à travailler...)" value={activeList.notes||""} onChange={e=>updateListNote(e.target.value)} style={{resize:"vertical",fontSize:13}}/>
+      </div>
+
+      {/* Ajouter un chant */}
+      <div className="card" style={{margin:"0 16px 12px"}}>
+        <div style={{fontWeight:700,fontSize:13,marginBottom:8}}>+ Ajouter un chant</div>
+        <input className="inp" placeholder="🔍 Rechercher dans la bibliothèque..." value={songSearch} onChange={e=>setSongSearch(e.target.value)}/>
+        {songSearch.trim()&&(
+          <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:4}}>
+            {filtered.length===0?<div style={{fontSize:12,color:"var(--txt3)"}}>Aucun chant trouvé</div>
+            :filtered.map(s=>(
+              <div key={s.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",background:"var(--sur2)",borderRadius:8,cursor:"pointer"}} onClick={()=>addSong(s)}>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:600,fontSize:13}}>{s.title}</div>
+                  <div style={{fontSize:11,color:"var(--txt2)"}}>Ton. {s.key}{s.categorie&&` · ${s.categorie}`}</div>
+                </div>
+                <span style={{fontSize:18}}>+</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Liste des chants */}
+      {activeList.songs.length===0?(
+        <div className="card" style={{margin:"0 16px"}}><div className="empty"><div className="empty-icon">🎵</div><div>Aucun chant dans cette liste</div></div></div>
+      ):(
+        <div style={{padding:"0 16px"}}>
+          {activeList.songs.map((s,si)=>{
+            const songData=st.songs.find(x=>x.id===s.id)||{title:s.title,key:s.key,sections:[]};
+            const dispKey=s.dispKey||s.key||"Do";
+            const st_=semit(s.key||"Do",dispKey);
+            const hasSections=songData.sections&&songData.sections.length>0;
+            return(
+              <div key={si} className="card" style={{marginBottom:10,borderLeft:`4px solid ${ch.color}`}}>
+                <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                    <button className="btn btn-g btn-xs" disabled={si===0} onClick={()=>moveSong(si,-1)}>↑</button>
+                    <button className="btn btn-g btn-xs" disabled={si===activeList.songs.length-1} onClick={()=>moveSong(si,1)}>↓</button>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:14}}>{si+1}. {s.title}</div>
+                    <div style={{fontSize:11,color:"var(--txt2)"}}>Original : {s.key}</div>
+                  </div>
+                  <div style={{textAlign:"center"}}>
+                    <div style={{fontWeight:800,fontSize:20,color:ch.color}}>{dispKey}</div>
+                  </div>
+                  <button className="btn btn-d btn-xs btn-ic" onClick={()=>removeSong(si)}>✕</button>
+                </div>
+
+                {/* Transposition */}
+                <div style={{display:"flex",gap:2,flexWrap:"wrap",marginBottom:8}}>
+                  {NOTES_FR.map(n=><button key={n} onClick={()=>updateSongKey(si,n)} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"2px 6px",fontSize:10}}>{n}</button>)}
+                  {dispKey!==s.key&&<button className="btn btn-g btn-xs" onClick={()=>updateSongKey(si,s.key)}>↺ {s.key}</button>}
+                </div>
+
+                {/* Note pour ce chant */}
+                {editNoteIdx===si?(
+                  <div>
+                    <textarea className="inp" rows={2} placeholder="Note pour ce chant (intro, coda, points à travailler...)" value={noteText} onChange={e=>setNoteText(e.target.value)} style={{resize:"vertical",fontSize:12,marginBottom:6}}/>
+                    <div style={{display:"flex",gap:6}}>
+                      <button className="btn btn-g btn-xs" onClick={()=>setEditNoteIdx(null)}>Annuler</button>
+                      <button className="btn btn-p btn-xs" onClick={()=>{updateSongNote(si,noteText);setEditNoteIdx(null);}}>Sauvegarder</button>
+                    </div>
+                  </div>
+                ):(
+                  <div>
+                    {s.note&&<div style={{fontSize:12,background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:6,padding:"6px 10px",marginBottom:6,color:"#92400E"}}>📝 {s.note}</div>}
+                    <button className="btn btn-g btn-xs" onClick={()=>{setEditNoteIdx(si);setNoteText(s.note||"");}}>
+                      {s.note?"✏️ Modifier note":"+ Ajouter une note"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Partition */}
+                {hasSections&&(
+                  <details style={{marginTop:8}}>
+                    <summary style={{fontSize:12,color:"var(--ind)",cursor:"pointer",userSelect:"none",padding:"4px 0"}}>Voir la partition</summary>
+                    <div style={{marginTop:8,padding:10,background:"var(--sur2)",borderRadius:8,maxHeight:200,overflowY:"auto"}}>
+                      {songData.sections.map((sec,si2)=>(
+                        <div key={si2} style={{marginBottom:10}}>
+                          <div className="cs-s">{sec.label}</div>
+                          {(sec.lines||[]).map((line,li)=>(
+                            line.k==="chord"
+                              ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre",fontSize:12}}>{transposeLine(line.t,st_)}</div>
+                              :<div key={li} className="cs-l" style={{whiteSpace:"pre",fontSize:13,lineHeight:1.7}}>{line.t}</div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
