@@ -1827,6 +1827,9 @@ export default function App() {
   const validate=(cid)=>{
     upd(s=>{
       s.planStatus[cid]="validated";
+    });
+    sbUpsert("plannings",{id:cid+"_status",member_id:cid,church:cid,date:"status",availability:"validated"});
+    upd(s=>{
       const plan=s.plans[cid];
       Object.values(plan).forEach(ids=>{
         (ids||[]).forEach(mid=>{
