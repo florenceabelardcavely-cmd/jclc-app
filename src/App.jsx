@@ -2522,7 +2522,7 @@ function MusicienTab({user,st,church}){
           {(songData.sections&&songData.sections.length>0)?(
             <div style={{display:"flex",flexDirection:"column",gap:20}}>
               {songData.sections.map((sec,si)=>(
-                <div key={si} style={{minWidth:260,maxWidth:420}}>
+                <div key={si} style={{width:"100%"}}>
                   <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
                   {(sec.lines||[]).map((line,li)=>(
                     line.k==="chord"
@@ -3632,7 +3632,7 @@ function SongViewModal({song,onClose}){
         </div>
         <div style={{flex:1,overflow:"auto",padding:"24px 40px",display:"flex",flexWrap:"wrap",gap:32,alignContent:"flex-start"}}>
           {(song.sections||[]).map((sec,si)=>(
-            <div key={si} style={{minWidth:280,maxWidth:420}}>
+            <div key={si} style={{width:"100%"}}>
               <div style={{fontSize:fontSize*0.8,fontWeight:700,fontStyle:"italic",opacity:.6,marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>{sec.label}</div>
               {(sec.lines||[]).map((line,li)=>(
                 line.k==="chord"
