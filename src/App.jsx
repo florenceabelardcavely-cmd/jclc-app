@@ -3052,6 +3052,25 @@ function ProgrammesTab({st,church,church2,M,deleteProg}){
             </div>
             
             <button className="btn btn-p btn-sm" onClick={()=>M.viewProg(p)}>📄 Imprimer</button>
+            <button className="btn btn-g btn-sm" onClick={()=>{
+              const songs=p.items||[];
+              let out=`${p.title||"Programme"}\n${"=".repeat(30)}\n\n`;
+              songs.forEach((item,i)=>{
+                const song=st.songs.find(s=>s.id===item.songId)||{title:item.title,sections:[]};
+                out+=`${i+1}. ${song.title||item.title}\n${"-".repeat(30)}\n`;
+                (song.sections||[]).forEach(sec=>{
+                  out+=`[${sec.label}]\n`;
+                  (sec.lines||[]).forEach(line=>{if(line.k==="lyric"&&line.t.trim())out+=line.t+"\n";});
+                  out+="\n";
+                });
+                out+="\n";
+              });
+              const blob=new Blob([out],{type:"text/plain;charset=utf-8"});
+              const a=document.createElement("a");
+              a.href=URL.createObjectURL(blob);
+              a.download=`${(p.title||"programme").replace(/[^a-zA-Z0-9]/g,"_")}_ProPresenter.txt`;
+              a.click();
+            }}>📺 ProPresenter</button>
             <button className="btn btn-g btn-sm" onClick={()=>M.editProg(p)}>✏️</button>
             <button className="btn btn-d btn-xs btn-ic" onClick={()=>deleteProg(p.id)}>🗑</button>
           </div>
@@ -3751,6 +3770,25 @@ function SongViewModal({song,onClose}){
   const printRef=useRef();
   const st_=semit(song.key||"Do",curKey);
   function handleKeyClick(k){setCurKey(k);playNote(k);}
+  function exportProPresenter(){
+    // Export paroles uniquement sans accords - format ProPresenter/texte
+    let out="";
+    out+=song.title+"\n";
+    out+="=".repeat(song.title.length)+"\n\n";
+    (song.sections||[]).forEach(sec=>{
+      out+=`[${sec.label}]\n`;
+      (sec.lines||[]).forEach(line=>{
+        if(line.k==="lyric"&&line.t.trim())out+=line.t+"\n";
+      });
+      out+="\n";
+    });
+    const blob=new Blob([out],{type:"text/plain;charset=utf-8"});
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download=song.title.replace(/[^a-zA-Z0-9]/g,"_")+"_ProPresenter.txt";
+    a.click();
+  }
+
   function exportCho(){
     const cp=toChordPro(song);
     const blob=new Blob([cp],{type:"text/plain"});
@@ -3797,6 +3835,7 @@ function SongViewModal({song,onClose}){
         </div>
         <button className="btn btn-g btn-sm no-print" title="Présentation plein écran" onClick={()=>setPresentMode(true)}>⛶</button>
         <button className="btn btn-g btn-sm no-print" onClick={exportCho}>⬇ .cho</button>
+        <button className="btn btn-g btn-sm no-print" title="Export ProPresenter (paroles uniquement)" onClick={exportProPresenter}>📺 Pro</button>
         <button className="btn btn-g btn-sm no-print" onClick={print}>🖨️</button>
         <button className="btn btn-g btn-sm no-print" onClick={onClose}>✕</button>
       </div>
