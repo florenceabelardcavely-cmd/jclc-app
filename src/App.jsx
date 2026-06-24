@@ -3692,15 +3692,15 @@ function ChantresTab() {
   const dayOrder = [1,2,3,4,5,6,0]; // lun->dim
   const todayIdx = dayOrder.indexOf(today);
 
-  const [selected, setSelected] = React.useState(todayIdx >= 0 ? todayIdx : 0);
-  const [checked, setChecked] = React.useState({});
-  const [showEchauffement, setShowEchauffement] = React.useState(false);
+  const [selected, setSelected] = useState(todayIdx >= 0 ? todayIdx : 0);
+  const [checked, setChecked] = useState({});
+  const [showEchauffement, setShowEchauffement] = useState(false);
 
   const prog = PROGRAMME_CHANTRES[selected];
   const key = `chantres_checked_${selected}`;
 
   // Charger les cases cochées depuis localStorage
-  React.useEffect(() => {
+  useEffect(() => {
     try {
       const saved = localStorage.getItem(key);
       if (saved) setChecked(JSON.parse(saved));
