@@ -1192,7 +1192,7 @@ const CSS = `
   --sh:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
   --shm:0 4px 16px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04);
 }
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:16px;line-height:1.5;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:18px;line-height:1.5;}
 button{cursor:pointer;font-family:inherit;}
 input,select,textarea{font-family:inherit;}
 .app{display:flex;flex-direction:column;min-height:100vh;}
