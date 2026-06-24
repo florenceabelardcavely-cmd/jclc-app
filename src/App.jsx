@@ -2536,10 +2536,10 @@ function MusicienTab({user,st,church}){
             <div style={{fontSize,color:"#94a3b8",fontStyle:"italic",textAlign:"center",marginTop:40}}>Aucune partition disponible.</div>
           )}
         </div>
-        <div style={{display:"flex",borderTop:"1px solid rgba(255,255,255,.1)",flexShrink:0,overflowX:"auto"}}>
+        <div style={{width:160,flexShrink:0,borderLeft:"1px solid rgba(255,255,255,.1)",overflowY:"auto",display:"flex",flexDirection:"column"}}>
           {items.map((it,i)=>{
             const sd=getSong(it.songId||it.id,it.title||it.songTitle);
-            return(<button key={i} onClick={()=>{setViewIdx(i);if(scrollRef.current)scrollRef.current.scrollTop=0;}} style={{flex:"0 0 auto",padding:"8px 12px",background:i===viewIdx?"#6366f1":"transparent",color:i===viewIdx?"#fff":"rgba(255,255,255,.5)",border:"none",borderRight:"1px solid rgba(255,255,255,.05)",cursor:"pointer",fontSize:11,fontWeight:i===viewIdx?700:400,whiteSpace:"nowrap"}}>{i+1}. {(sd.title||it.title||"?").split(" ").slice(0,3).join(" ")}</button>);
+            return(<button key={i} onClick={()=>{setViewIdx(i);if(scrollRef.current)scrollRef.current.scrollTop=0;}} style={{padding:"10px 12px",background:i===viewIdx?"#6366f1":"transparent",color:i===viewIdx?"#fff":"rgba(255,255,255,.5)",border:"none",borderBottom:"1px solid rgba(255,255,255,.05)",cursor:"pointer",fontSize:11,fontWeight:i===viewIdx?700:400,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i+1}. {(sd.title||it.title||"?").split(" ").slice(0,4).join(" ")}</button>);
           })}
         </div>
       </div>
