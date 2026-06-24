@@ -2768,7 +2768,7 @@ function PlanningTab({st,church,year,month,prevMonth,nextMonth,isAvail,M,validat
         <div><div className="pt">{ch.fullName}</div><div className="ps">Cliquez sur une date pour assigner les membres</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <span className={`bdg ${status==="validated"?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{status==="validated"?"Validé":"Brouillon"}</span>
-          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church,mk)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church,mk)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}}
+          {status==="draft"?<button className="btn btn-grn" onClick={()=>validate(church,mk)}>✓ Valider</button>:<><button className="btn btn-g btn-sm" onClick={()=>unvalidate(church,mk)}>Modifier</button><button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button></>}{showFlyer&&<FlyerModal church={church} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}
         </div>
       </div>
       <div className="stats">
