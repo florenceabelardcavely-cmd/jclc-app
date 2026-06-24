@@ -1192,7 +1192,7 @@ const CSS = `
   --sh:0 1px 3px rgba(0,0,0,.07),0 1px 2px rgba(0,0,0,.05);
   --shm:0 4px 16px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04);
 }
-body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:14px;line-height:1.5;}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:16px;line-height:1.5;}
 button{cursor:pointer;font-family:inherit;}
 input,select,textarea{font-family:inherit;}
 .app{display:flex;flex-direction:column;min-height:100vh;}
@@ -1533,7 +1533,18 @@ function FlyerModal({church,st,month,year,onClose}){
         {/* Boutons actions (hors flyer) */}
         <div style={{display:"flex",gap:8,padding:"14px 16px 0",background:"var(--sur)"}}>
           <button className="btn btn-p" style={{flex:1}} onClick={shareWhatsApp}>📱 Partager sur WhatsApp</button>
-          <button className="btn btn-g" style={{flex:1}} onClick={()=>window.print()}>🖨️ Imprimer / PDF</button>
+          <button className="btn btn-g" style={{flex:1}} onClick={async()=>{
+            try{
+              const el=flyerRef.current;
+              if(!el)return;
+              const{default:h2c}=await import("https://esm.sh/html2canvas@1.4.1");
+              const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:"white"});
+              const link=document.createElement("a");
+              link.download=`planning-${cid}-${monthLabelUp.replace(/ /g,"-")}.jpg`;
+              link.href=canvas.toDataURL("image/jpeg",0.92);
+              link.click();
+            }catch(e){alert("Erreur export: "+e.message);}
+          }}>📥 Télécharger JPEG</button>
           <button className="btn btn-g btn-ic" onClick={onClose}>✕</button>
         </div>
 
@@ -2089,7 +2100,7 @@ export default function App() {
 
   // ─── TABS & ROUTING ───
   const tabs = isAdmin
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"notifications",l:"Notifications",i:"🔔"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"faq",l:"FAQ",i:"❓"}]
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning",i:"📅"},{id:"faq",l:"FAQ",i:"❓"}];
@@ -2172,7 +2183,7 @@ export default function App() {
         )}
 
         <main className="main">
-          {isAdmin&&["disponibilites","planning","calendrier","notifications","programmes","statistiques"].includes(tab)&&(
+          {isAdmin&&["disponibilites","planning","calendrier","programmes","statistiques"].includes(tab)&&(
             <div className="csw">
               {Object.values(CHURCHES).map(c=>(
                 <button key={c.id} className={`cswb${church===c.id?" "+c.id:""}`} onClick={()=>setChurch(c.id)}>
@@ -2193,7 +2204,7 @@ export default function App() {
           {tab==="disponibilites"&&<DispoTab user={user} isAdmin={isAdmin} st={st} church={myChurch2} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} toggleAvail={toggleAvail} isAvail={isAvail} toast_={toast_}/>}
           {tab==="planning"      &&isAdmin&&<PlanningTab st={st} church={church} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} isAvail={isAvail} M={M} validate={validate} unvalidate={unvalidate}/>}
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch2} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
-          {tab==="notifications" &&isAdmin&&<NotifTab st={st} church={church} sendNotifs={sendNotifs}/>}
+
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
           {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
