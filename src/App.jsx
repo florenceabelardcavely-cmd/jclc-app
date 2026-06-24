@@ -2552,11 +2552,35 @@ function MusicienTab({user,st,church}){
                 {songData.sections.map((sec,si)=>(
                   <div key={si} style={{width:"100%"}}>
                     <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
-                    {(sec.lines||[]).map((line,li)=>(
-                      line.k==="chord"
-                        ?<div key={li} style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.9,whiteSpace:"pre",lineHeight:1.3}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
-                        :<div key={li} style={{fontSize,whiteSpace:"pre",lineHeight:1.8,color:"#f1f5f9"}}>{line.t}</div>
-                    ))}
+                    {(sec.lines||[]).map((line,li)=>{
+                      const note=getLineNote(sid,si,li);
+                      const isEditing=editingNote?.sid===sid&&editingNote?.si===si&&editingNote?.li===li;
+                      return(
+                        <div key={li} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <div style={{flex:1}}>
+                            {line.k==="chord"
+                              ?<div style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.9,whiteSpace:"pre",lineHeight:1.3}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                              :<div style={{fontSize,whiteSpace:"pre",lineHeight:1.8,color:"#f1f5f9"}}>{line.t}</div>
+                            }
+                          </div>
+                          {isEditing?(
+                            <div style={{display:"flex",gap:4,alignItems:"center",flexShrink:0}}>
+                              <input autoFocus value={noteInput} onChange={e=>setNoteInput(e.target.value)}
+                                onKeyDown={e=>{if(e.key==="Enter")saveLineNote(sid,si,li,noteInput);if(e.key==="Escape")setEditingNote(null);}}
+                                style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.3)",borderRadius:6,padding:"2px 8px",color:"#fff",fontSize:11,width:130,outline:"none"}}
+                                placeholder="Ma note..."/>
+                              <button onClick={()=>saveLineNote(sid,si,li,noteInput)} style={{background:"#6366f1",border:"none",borderRadius:4,color:"#fff",padding:"2px 6px",cursor:"pointer",fontSize:11}}>✓</button>
+                              <button onClick={()=>setEditingNote(null)} style={{background:"rgba(255,255,255,.1)",border:"none",borderRadius:4,color:"#fff",padding:"2px 6px",cursor:"pointer",fontSize:11}}>✕</button>
+                            </div>
+                          ):(
+                            <div style={{flexShrink:0,display:"flex",alignItems:"center",gap:4}}>
+                              {note&&<span style={{fontSize:11,color:"#FCD34D",fontStyle:"italic",background:"rgba(252,211,77,.1)",borderRadius:6,padding:"1px 8px",border:"1px solid rgba(252,211,77,.2)"}}>{note}</span>}
+                              <button onClick={()=>{setEditingNote({sid,si,li});setNoteInput(note||"");}} style={{background:"transparent",border:"none",color:note?"#FCD34D":"rgba(255,255,255,.15)",cursor:"pointer",fontSize:12,padding:"0 2px"}} title="Annoter">✏️</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
               </div>
