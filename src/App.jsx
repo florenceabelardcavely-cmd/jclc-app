@@ -2495,52 +2495,67 @@ function MusicienTab({user,st,church}){
     const st_=semit(origKey,dispKey);
     return(
       <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"10px 16px",background:"rgba(0,0,0,.5)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0}}>
+        {/* Barre du haut */}
+        <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(0,0,0,.6)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0,flexWrap:"wrap"}}>
           <button className="btn btn-g btn-sm" onClick={()=>setViewIdx(null)}>← Liste</button>
-          <div style={{flex:1,textAlign:"center"}}>
-            <div style={{fontWeight:700,fontSize:15}}>{viewIdx+1}/{items.length} · {songData.title||item.title}</div>
-            <div style={{fontSize:11,opacity:.6}}>{activeProg.title} · Ton. {dispKey}</div>
+          <div style={{flex:1,textAlign:"center",minWidth:0}}>
+            <div style={{fontWeight:700,fontSize:14,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{songData.title||item.title}</div>
+            <div style={{fontSize:10,opacity:.5}}>{activeProg.title} · Ton. {dispKey}</div>
           </div>
-          <button className="btn btn-g btn-sm" disabled={viewIdx===0} onClick={()=>{setViewIdx(v=>v-1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>◀</button>
-          <button className="btn btn-g btn-sm" disabled={viewIdx===items.length-1} onClick={()=>{setViewIdx(v=>v+1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>▶</button>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 16px",background:"rgba(0,0,0,.3)",flexShrink:0,flexWrap:"wrap"}}>
           <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
-          <div style={{display:"flex",gap:2,flexWrap:"wrap"}}>
-            {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:700,background:dispKey===n?"#6366f1":"rgba(255,255,255,.1)",color:"#fff",border:"none",cursor:"pointer"}}>{n}</button>)}
+          <div style={{display:"flex",gap:2}}>
+            {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} style={{padding:"2px 5px",borderRadius:4,fontSize:10,fontWeight:700,background:dispKey===n?"#6366f1":"rgba(255,255,255,.1)",color:"#fff",border:"none",cursor:"pointer"}}>{n}</button>)}
           </div>
           <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
-          <div style={{marginLeft:"auto",display:"flex",gap:6,alignItems:"center"}}>
-            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do</button>
-            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C</button>
-            <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.max(12,f-2))}>A−</button>
-            <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.min(32,f+2))}>A+</button>
-            <button className={`btn btn-xs ${autoScroll?"btn-p":"btn-g"}`} onClick={()=>setAutoScroll(a=>!a)}>⏬ Auto</button>
+          <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do</button>
+          <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C</button>
+          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.max(12,f-2))}>A−</button>
+          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.min(32,f+2))}>A+</button>
+          <button className={`btn btn-xs ${autoScroll?"btn-p":"btn-g"}`} onClick={()=>setAutoScroll(a=>!a)}>⏬</button>
+        </div>
+        {/* Corps : liste gauche + chant droite */}
+        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+          {/* Liste chants - colonne gauche */}
+          <div style={{width:180,flexShrink:0,borderRight:"1px solid rgba(255,255,255,.1)",overflowY:"auto",background:"rgba(0,0,0,.3)"}}>
+            <div style={{padding:"8px 0",fontSize:10,fontWeight:700,color:"rgba(255,255,255,.3)",textTransform:"uppercase",letterSpacing:1,textAlign:"center"}}>Programme</div>
+            {items.map((it,i)=>{
+              const sd=getSong(it.songId||it.id,it.title||it.songTitle);
+              return(<button key={i} onClick={()=>{setViewIdx(i);if(scrollRef.current)scrollRef.current.scrollTop=0;}} style={{
+                width:"100%",padding:"10px 12px",
+                background:i===viewIdx?"#6366f1":"transparent",
+                color:i===viewIdx?"#fff":"rgba(255,255,255,.6)",
+                border:"none",borderBottom:"1px solid rgba(255,255,255,.05)",
+                cursor:"pointer",fontSize:12,fontWeight:i===viewIdx?700:400,
+                textAlign:"left",display:"block",
+                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"
+              }}>{i+1}. {sd.title||it.title||"?"}</button>);
+            })}
           </div>
-        </div>
-        <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 24px"}}>
-          {(songData.sections&&songData.sections.length>0)?(
-            <div style={{display:"flex",flexDirection:"column",gap:20}}>
-              {songData.sections.map((sec,si)=>(
-                <div key={si} style={{width:"100%"}}>
-                  <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
-                  {(sec.lines||[]).map((line,li)=>(
-                    line.k==="chord"
-                      ?<div key={li} style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.9,whiteSpace:"pre",lineHeight:1.3}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
-                      :<div key={li} style={{fontSize,whiteSpace:"pre",lineHeight:1.8,color:"#f1f5f9"}}>{line.t}</div>
-                  ))}
-                </div>
-              ))}
+          {/* Chant - colonne droite */}
+          <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 28px"}}>
+            {(songData.sections&&songData.sections.length>0)?(
+              <div style={{display:"flex",flexDirection:"column",gap:20}}>
+                {songData.sections.map((sec,si)=>(
+                  <div key={si} style={{width:"100%"}}>
+                    <div style={{fontSize:fontSize*0.75,fontWeight:700,fontStyle:"italic",opacity:.5,marginBottom:6,textTransform:"uppercase",letterSpacing:1,color:"#94a3b8"}}>{sec.label}</div>
+                    {(sec.lines||[]).map((line,li)=>(
+                      line.k==="chord"
+                        ?<div key={li} style={{color:"#f87171",fontFamily:"monospace",fontWeight:700,fontSize:fontSize*0.9,whiteSpace:"pre",lineHeight:1.3}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                        :<div key={li} style={{fontSize,whiteSpace:"pre",lineHeight:1.8,color:"#f1f5f9"}}>{line.t}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ):(
+              <div style={{fontSize,color:"#94a3b8",fontStyle:"italic",textAlign:"center",marginTop:40}}>Aucune partition disponible.</div>
+            )}
+            {/* Navigation bas */}
+            <div style={{display:"flex",gap:10,justifyContent:"center",marginTop:30,paddingTop:20,borderTop:"1px solid rgba(255,255,255,.1)"}}>
+              <button className="btn btn-g" disabled={viewIdx===0} onClick={()=>{setViewIdx(v=>v-1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>◀ Précédent</button>
+              <span style={{color:"rgba(255,255,255,.4)",fontSize:12,alignSelf:"center"}}>{viewIdx+1} / {items.length}</span>
+              <button className="btn btn-g" disabled={viewIdx===items.length-1} onClick={()=>{setViewIdx(v=>v+1);if(scrollRef.current)scrollRef.current.scrollTop=0;}}>Suivant ▶</button>
             </div>
-          ):(
-            <div style={{fontSize,color:"#94a3b8",fontStyle:"italic",textAlign:"center",marginTop:40}}>Aucune partition disponible.</div>
-          )}
-        </div>
-        <div style={{width:160,flexShrink:0,borderLeft:"1px solid rgba(255,255,255,.1)",overflowY:"auto",display:"flex",flexDirection:"column"}}>
-          {items.map((it,i)=>{
-            const sd=getSong(it.songId||it.id,it.title||it.songTitle);
-            return(<button key={i} onClick={()=>{setViewIdx(i);if(scrollRef.current)scrollRef.current.scrollTop=0;}} style={{padding:"10px 12px",background:i===viewIdx?"#6366f1":"transparent",color:i===viewIdx?"#fff":"rgba(255,255,255,.5)",border:"none",borderBottom:"1px solid rgba(255,255,255,.05)",cursor:"pointer",fontSize:11,fontWeight:i===viewIdx?700:400,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{i+1}. {(sd.title||it.title||"?").split(" ").slice(0,4).join(" ")}</button>);
-          })}
+          </div>
         </div>
       </div>
     );
