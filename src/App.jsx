@@ -2465,6 +2465,20 @@ function MusicienTab({user,st,church}){
   const [viewIdx,setViewIdx]=useState(null);
   const [fontSize,setFontSize]=useState(16);
   const [autoScroll,setAutoScroll]=useState(false);
+  const [lineNotes,setLineNotes]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_notes_"+user?.id)||"{}");}catch{return{};}});
+  const [editingNote,setEditingNote]=useState(null); // {sid,si,li}
+  const [noteInput,setNoteInput]=useState("");
+
+  function getLineNoteKey(sid,si,li){return `${sid}_${si}_${li}`;}
+  function getLineNote(sid,si,li){return lineNotes[getLineNoteKey(sid,si,li)]||"";}
+  function saveLineNote(sid,si,li,txt){
+    const key=getLineNoteKey(sid,si,li);
+    const newNotes=txt.trim()?{...lineNotes,[key]:txt.trim()}:{...lineNotes};
+    if(!txt.trim())delete newNotes[key];
+    setLineNotes(newNotes);
+    localStorage.setItem("jclc_notes_"+user?.id,JSON.stringify(newNotes));
+    setEditingNote(null);
+  }
   const scrollRef=useRef();
   const scrollTimer=useRef();
   const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
