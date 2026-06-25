@@ -2116,7 +2116,7 @@ export default function App() {
     addSong:()=>setModal({t:"addSong"}),
     editSong:(s)=>setModal({t:"editSong",s}),
     importSong:()=>setModal({t:"importSong"}),
-    addProg:()=>setModal({t:"addProg"}),
+    addProg:(cid)=>setModal({t:"addProg",cid}),
     editProg:(p)=>setModal({t:"editProg",p}),
     viewProg:(p)=>setModal({t:"viewProg",p}),
     flyer:(p)=>setModal({t:"flyer",p}),
@@ -2140,7 +2140,7 @@ export default function App() {
             {modal.t==="addSong"    &&<SongFormModal onSave={s=>{addSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editSong"   &&<SongFormModal song={modal.s} onSave={s=>{editSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="importSong" &&<ImportSongModal onSave={s=>{addSong(s);toast_("Chant importé !","📥");}} onSaveMany={songs=>{songs.forEach(s=>addSong(s));setModal(null);toast_(`${songs.length} chant(s) importé(s) !`,"📥");}} onClose={()=>setModal(null)}/>}
-            {modal.t==="addProg"    &&<ProgramFormModal songs={st.songs} churchId={myChurch2} onSave={p=>{addProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
+            {modal.t==="addProg"    &&<ProgramFormModal songs={st.songs} churchId={modal.cid||myChurch2} onSave={p=>{addProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editProg"   &&<ProgramFormModal songs={st.songs} churchId={myChurch2} program={modal.p} onSave={p=>{editProg(p);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="viewProg"   &&<ProgramViewModal program={modal.p} songs={st.songs} onClose={()=>setModal(null)}/>}
             {modal.t==="flyer"      &&<FlyerModal program={modal.p} st={st} onClose={()=>setModal(null)}/>}
@@ -3038,7 +3038,7 @@ function ProgrammesTab({st,church,church2,M,deleteProg}){
       )}
       <div className="ph">
         <div><div className="pt">Programmes</div><div className="ps">{ch.fullName} · Feuilles avec accords · 3 pages max · 2 chants min/page</div></div>
-        <button className="btn btn-p btn-sm" onClick={M.addProg}>+ Créer</button>
+        <button className="btn btn-p btn-sm" onClick={()=>M.addProg(activeChurch)}>+ Créer</button>
       </div>
       {progs.length===0?<div className="card"><div className="empty"><div className="empty-icon">📄</div><div>Aucun programme créé</div></div></div>
       :progs.map(p=>(
