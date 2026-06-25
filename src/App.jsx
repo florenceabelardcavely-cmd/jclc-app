@@ -1949,7 +1949,7 @@ export default function App() {
         return;
       }
       const u=loginId==="admin"?{id:"admin",name:"Administrateur",role:"admin",church:"both"}:{id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"};
-      setUser(u);localStorage.setItem("jclc_user",JSON.stringify(u));setLoginPwd("");setLoginAttempts(0);setTab("accueil");return;
+      const uWithTime={...u,loginTime:Date.now()};setUser(uWithTime);localStorage.setItem("jclc_user",JSON.stringify(uWithTime));setLoginPwd("");setLoginAttempts(0);setTab("accueil");return;
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
@@ -1995,7 +1995,7 @@ export default function App() {
           const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
           window.__jclcMemberPin=(m.pin||"0000");
           setUser(userData);setLoginPin(["","","",""]);setLoginAttempts(0);
-          localStorage.setItem("jclc_user",JSON.stringify(userData));setTab("accueil");
+          localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));setTab("accueil");
         }else{
           const att=loginAttempts+1;setLoginAttempts(att);
           if(att>=3){setLoginLocked(true);setLoginErr("Compte bloqué 30s.");setTimeout(()=>{setLoginLocked(false);setLoginAttempts(0);setLoginErr("");},30000);}
