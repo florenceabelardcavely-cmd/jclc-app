@@ -3037,6 +3037,7 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 // ══════════════════════════════════════════════════
 function ProgrammesTab({st,church,church2,M,deleteProg}){
   const [activeChurch,setActiveChurch]=useState(church||"creil");
+  useEffect(()=>{setActiveChurch(church||"creil");},[church]);
   const ch=CHURCHES[activeChurch]||CHURCHES[church]||CHURCHES.creil;
   const progs=st.programs.filter(p=>p.churchId===activeChurch);
   return(
