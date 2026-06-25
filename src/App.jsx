@@ -1727,8 +1727,8 @@ export default function App() {
         });
         return n;
       });
+      setAppLoaded(true);
     })();
-    setAppLoaded(true);
   },[]);
 
   useEffect(()=>{
