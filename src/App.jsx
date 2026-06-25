@@ -1195,7 +1195,7 @@ const CSS = `
 body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;font-size:18px;line-height:1.5;}
 button{cursor:pointer;font-family:inherit;}
 input,select,textarea{font-family:inherit;}
-.app{display:flex;flex-direction:column;min-height:100vh;}
+.app{display:flex;flex-direction:column;min-height:100vh;position:relative;}
 .main{flex:1;padding:24px 28px;max-width:1100px;margin:0 auto;width:100%;}
 .hdr{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;box-shadow:0 1px 0 var(--bdr),0 4px 16px rgba(79,70,229,.06);}
 .hbrand{display:flex;align-items:center;gap:12px;}
@@ -2147,6 +2147,7 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <div className="app">
+        <div style={{position:"fixed",inset:0,backgroundImage:`url(${LOGO_B64})`,backgroundRepeat:"no-repeat",backgroundPosition:"center center",backgroundSize:"400px 400px",opacity:0.04,pointerEvents:"none",zIndex:0}}/>
         {showFlyerModal&&<FlyerModal church={showFlyerModal} st={st} month={month} year={year} onClose={()=>setShowFlyerModal(null)}/>}
       {toast&&<div className="toast">{toast.icon} {toast.msg}</div>}
 
