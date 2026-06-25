@@ -1920,7 +1920,7 @@ export default function App() {
   // Songs
   const addSong=s=>{const ns={...s,id:uid()};upd(x=>x.songs.push(ns));sbUpsert("songs",ns);toast_("Chant ajouté","🎵");};
   const editSong=s=>{upd(x=>{const i=x.songs.findIndex(y=>y.id===s.id);if(i>=0)x.songs[i]=s;});sbUpsert("songs",s);toast_("Chant mis à jour","✏️");};
-  const deleteSong=id=>{if(!window.confirm("Supprimer ce chant ? Cette action est irréversible."))return;upd(x=>x.songs=x.songs.filter(s=>s.id!==id));sbDel("songs",id);toast_("Chant supprimé","🗑️");};
+  const deleteSong=id=>{upd(x=>x.songs=x.songs.filter(s=>s.id!==id));sbDel("songs",id);toast_("Chant supprimé","🗑️");};
 
   // Programs
   const addProg=p=>{
@@ -1936,7 +1936,7 @@ export default function App() {
     sbUpsert("programs",row);
     toast_("Programme mis à jour","✏️");
   };
-  const deleteProg=id=>{if(!window.confirm("Supprimer ce programme ? Cette action est irréversible."))return;upd(x=>x.programs=x.programs.filter(p=>p.id!==id));sbDel("programs",id);toast_("Programme supprimé","🗑️");};
+  const deleteProg=id=>{upd(x=>x.programs=x.programs.filter(p=>p.id!==id));sbDel("programs",id);toast_("Programme supprimé","🗑️");};
 
   const prevMonth=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
   const nextMonth=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
@@ -2480,7 +2480,7 @@ function MusicienTab({user,st,church}){
   const [songKeys,setSongKeys]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_keys_"+user?.id)||"{}");}catch{return{};}});
   const [notation,setNotation]=useState("fr");
   const [viewIdx,setViewIdx]=useState(null);
-  const [fontSize,setFontSize]=useState(()=>{try{return parseInt(localStorage.getItem("jclc_fontsize_"+user?.id)||"16");}catch{return 16;}});
+  const [fontSize,setFontSize]=useState(16);
   const [autoScroll,setAutoScroll]=useState(false);
   const [lineNotes,setLineNotes]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_notes_"+user?.id)||"{}");}catch{return{};}});
   const [editingNote,setEditingNote]=useState(null); // {sid,si,li}
@@ -2541,8 +2541,8 @@ function MusicienTab({user,st,church}){
           <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
           <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do</button>
           <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C</button>
-          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>{const n=Math.max(12,f-2);try{localStorage.setItem("jclc_fontsize_"+user?.id,n);}catch{}return n;})}>A−</button>
-          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>{const n=Math.min(32,f+2);try{localStorage.setItem("jclc_fontsize_"+user?.id,n);}catch{}return n;})}>A+</button>
+          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.max(12,f-2))}>A−</button>
+          <button className="btn btn-g btn-xs" onClick={()=>setFontSize(f=>Math.min(32,f+2))}>A+</button>
           <button className={`btn btn-xs ${autoScroll?"btn-p":"btn-g"}`} onClick={()=>setAutoScroll(a=>!a)}>⏬</button>
         </div>
         {/* Corps : liste gauche + chant droite */}
