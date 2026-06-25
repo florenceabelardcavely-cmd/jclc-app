@@ -2461,7 +2461,7 @@ function MusicienTab({user,st,church}){
   const progs=upcomingProgs.length>0?upcomingProgs:allProgs;
   const [progIdx,setProgIdx]=useState(0);
   const activeProg=progs[progIdx]||null;
-  const [songKeys,setSongKeys]=useState({});
+  const [songKeys,setSongKeys]=useState(()=>{try{return JSON.parse(localStorage.getItem("jclc_keys_"+user?.id)||"{}");}catch{return{};}});
   const [notation,setNotation]=useState("fr");
   const [viewIdx,setViewIdx]=useState(null);
   const [fontSize,setFontSize]=useState(16);
@@ -2490,7 +2490,7 @@ function MusicienTab({user,st,church}){
     const cur=getKey(sid,orig);
     const ci=CUR_NOTES.indexOf(cur)!==-1?CUR_NOTES.indexOf(cur):NOTES_FR.indexOf(cur);
     if(ci===-1)return;
-    setSongKeys(k=>({...k,[sid]:CUR_NOTES[(ci+delta+12)%12]}));
+    setSongKeys(k=>{const nk={...k,[sid]:CUR_NOTES[(ci+delta+12)%12]};try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;});
   }
   function getSong(songId,title){return st.songs.find(s=>s.id===songId)||{title:title||"?",key:"Do",sections:[]};}
   useEffect(()=>{
@@ -2519,7 +2519,7 @@ function MusicienTab({user,st,church}){
           </div>
           <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
           <div style={{display:"flex",gap:2}}>
-            {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} style={{padding:"2px 5px",borderRadius:4,fontSize:10,fontWeight:700,background:dispKey===n?"#6366f1":"rgba(255,255,255,.1)",color:"#fff",border:"none",cursor:"pointer"}}>{n}</button>)}
+            {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>{const nk={...k,[sid]:n};try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})} style={{padding:"2px 5px",borderRadius:4,fontSize:10,fontWeight:700,background:dispKey===n?"#6366f1":"rgba(255,255,255,.1)",color:"#fff",border:"none",cursor:"pointer"}}>{n}</button>)}
           </div>
           <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
           <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do</button>
@@ -2659,9 +2659,9 @@ function MusicienTab({user,st,church}){
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap",marginBottom:hasSections?8:0}}>
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
-                  {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>({...k,[sid]:n}))} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"2px 6px",fontSize:10}}>{n}</button>)}
+                  {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>{const nk={...k,[sid]:n};try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"2px 6px",fontSize:10}}>{n}</button>)}
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
-                  {dispKey!==origKey&&<button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const n={...k};delete n[sid];return n;})}>↺ {origKey}</button>}
+                  {dispKey!==origKey&&<button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const nk={...k};delete nk[sid];try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})}>↺ {origKey}</button>}
                 </div>
                 {hasSections&&(
                   <details>
