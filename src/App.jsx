@@ -2467,7 +2467,9 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 //  MUSICIEN TAB
 // ══════════════════════════════════════════════════
 function MusicienTab({user,st,church}){
-  const cid=church||user.church||"creil";
+  const defaultChurch=localStorage.getItem("jclc_church_"+user?.id)||church||user.church||"creil";
+  const [activeChurch,setActiveChurch]=useState(defaultChurch);
+  const cid=activeChurch;
   const ch=CHURCHES[cid];
   const today=new Date();today.setHours(0,0,0,0);
   const upcomingProgs=st.programs.filter(p=>p.churchId===cid&&p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -2513,6 +2515,8 @@ function MusicienTab({user,st,church}){
     return()=>clearInterval(scrollTimer.current);
   },[autoScroll]);
   const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
+  const hasChurch2=user.church2&&CHURCHES[user.church2];
+
   if(viewIdx!==null){
     const item=items[viewIdx];
     if(!item){setViewIdx(null);return null;}
