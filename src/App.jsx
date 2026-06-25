@@ -3296,7 +3296,7 @@ function RepetitionTab({st,church,isAdmin,user}){
       }));
       setLoaded(true);
     });
-  },[]);
+  },[church]);
 
   useEffect(()=>{
     if(metroActive!==null&&activeList){
