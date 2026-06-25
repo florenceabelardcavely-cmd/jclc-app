@@ -2453,11 +2453,13 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 //  MUSICIEN TAB
 // ══════════════════════════════════════════════════
 function MusicienTab({user,st,church}){
-  const cid=user.church||church;
+  const defaultChurch=user.church||church||"creil";
+  const [activeChurch,setActiveChurch]=useState(defaultChurch);
+  const cid=activeChurch;
   const ch=CHURCHES[cid];
   const today=new Date();today.setHours(0,0,0,0);
   const upcomingProgs=st.programs.filter(p=>p.churchId===cid&&p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
-  const allProgs=st.programs.filter(p=>p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const allProgs=st.programs.filter(p=>p.churchId===cid&&p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
   const progs=upcomingProgs.length>0?upcomingProgs:allProgs;
   const [progIdx,setProgIdx]=useState(0);
   const activeProg=progs[progIdx]||null;
@@ -2499,6 +2501,7 @@ function MusicienTab({user,st,church}){
     return()=>clearInterval(scrollTimer.current);
   },[autoScroll]);
   const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
+  const hasChurch2=user.church2&&CHURCHES[user.church2];
 
   if(viewIdx!==null){
     const item=items[viewIdx];
@@ -2602,6 +2605,16 @@ function MusicienTab({user,st,church}){
 
   if(!activeProg&&progs.length===0) return(
     <div>
+      {hasChurch2&&(
+        <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
+          {[defaultChurch,user.church2].map(c=>(
+            <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
+              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);}}>
+              {CHURCHES[c]?.fullName||c}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ph"><div><div className="pt">🎸 Vue Musicien</div><div className="ps">{ch.fullName}</div></div></div>
       <div className="card"><div className="empty"><div className="empty-icon">📋</div><div>Aucun programme à venir</div><div style={{fontSize:12,color:"var(--txt2)",marginTop:8}}>L'admin doit créer un programme.</div></div></div>
     </div>
@@ -2609,6 +2622,16 @@ function MusicienTab({user,st,church}){
 
   return(
     <div>
+      {hasChurch2&&(
+        <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
+          {[defaultChurch,user.church2].map(c=>(
+            <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
+              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);}}>
+              {CHURCHES[c]?.fullName||c}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ph"><div><div className="pt">🎸 Vue Musicien</div><div className="ps">{ch.fullName} · Mode OnSong</div></div></div>
       {progs.length>1&&(
         <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",padding:"0 16px"}}>
