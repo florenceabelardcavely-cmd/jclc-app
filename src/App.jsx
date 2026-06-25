@@ -2453,7 +2453,7 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 //  MUSICIEN TAB
 // ══════════════════════════════════════════════════
 function MusicienTab({user,st,church}){
-  const defaultChurch=user.church||church||"creil";
+  const defaultChurch=church||user.church||"creil";
   const [activeChurch,setActiveChurch]=useState(defaultChurch);
   const cid=activeChurch;
   const ch=CHURCHES[cid];
