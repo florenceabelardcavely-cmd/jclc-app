@@ -2220,7 +2220,7 @@ export default function App() {
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch2} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
 
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
-          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:myChurch2} church2={user?.church2||null} M={M} deleteProg={deleteProg}/>}
+          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
           {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
