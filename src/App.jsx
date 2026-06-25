@@ -1767,24 +1767,6 @@ export default function App() {
   const [loginLocked, setLoginLocked] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [tab, setTab]  = useState("accueil");
-  const [tabHistory, setTabHistory] = useState([]);
-  const goTab=(t)=>{setTabHistory(h=>[...h.slice(-9),tab]);setTab(t);};
-
-  useEffect(()=>{
-    window.history.pushState(null,"",window.location.href);
-    const onPop=()=>{
-      window.history.pushState(null,"",window.location.href);
-      if(modal){setModal(null);return;}
-      setTabHistory(h=>{
-        if(h.length===0)return h;
-        const prev=h[h.length-1];
-        setTab(prev);
-        return h.slice(0,-1);
-      });
-    };
-    window.addEventListener("popstate",onPop);
-    return()=>window.removeEventListener("popstate",onPop);
-  },[modal]);
   const [church, setChurch] = useState("creil");
   const [modal, setModal]   = useState(null);
   const [toast, setToast]   = useState(null);
