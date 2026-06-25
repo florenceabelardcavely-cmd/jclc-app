@@ -1240,6 +1240,10 @@ input,select,textarea{font-family:inherit;}
 .toast{position:fixed;bottom:88px;right:16px;background:linear-gradient(135deg,#1A1830,#2D2B6B);color:#fff;padding:12px 18px;border-radius:14px;font-size:13px;font-weight:600;z-index:300;box-shadow:0 8px 32px rgba(79,70,229,.3),0 0 0 1px rgba(255,255,255,.1);animation:slideUp .25s cubic-bezier(.34,1.56,.64,1);backdrop-filter:blur(20px);}
 @keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.skeleton{background:linear-gradient(90deg,var(--sur2) 25%,var(--bdr) 50%,var(--sur2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;}
+.fade-in{animation:fadeIn .3s ease forwards;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .fade-in{animation:fadeIn .3s ease forwards;}
 .pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
@@ -1693,6 +1697,7 @@ const PLANNING_LOGNES_2026 = [
 // ══════════════════════════════════════════════════
 export default function App() {
   const [st, setSt]    = useState(INIT);
+  const [appLoaded, setAppLoaded] = useState(false);
   useEffect(()=>{
     (async()=>{
       const [mbrs,sngs,plans,progs]=await Promise.all([sbGet("members"),sbGet("songs"),sbGet("plannings"),sbGet("programs")]);
@@ -1723,6 +1728,7 @@ export default function App() {
         return n;
       });
     })();
+    setAppLoaded(true);
   },[]);
 
   useEffect(()=>{
@@ -2208,6 +2214,8 @@ export default function App() {
         )}
 
         <main className="main">
+          {!appLoaded&&user&&<SkeletonLoader/>}
+          {(!user||appLoaded)&&<div className="fade-in">
           {isAdmin&&["disponibilites","planning","calendrier","programmes","statistiques"].includes(tab)&&(
             <div className="csw">
               {Object.values(CHURCHES).map(c=>(
@@ -2237,7 +2245,7 @@ export default function App() {
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
           {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>}
-        </main>
+        </div></main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
       </div>
@@ -2527,6 +2535,44 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════
+//  SKELETON LOADER
+// ══════════════════════════════════════════════════
+function SkeletonLoader(){
+  return(
+    <div style={{padding:"20px 16px"}}>
+      {/* Header skeleton */}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:24}}>
+        <div className="skeleton" style={{width:40,height:40,borderRadius:12}}/>
+        <div style={{flex:1}}>
+          <div className="skeleton" style={{height:14,width:"60%",marginBottom:6}}/>
+          <div className="skeleton" style={{height:10,width:"40%"}}/>
+        </div>
+      </div>
+      {/* Hero card skeleton */}
+      <div className="skeleton" style={{height:120,borderRadius:20,marginBottom:14}}/>
+      {/* Widget skeleton */}
+      <div className="skeleton" style={{height:80,borderRadius:16,marginBottom:14}}/>
+      {/* Stats skeleton */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+        {[1,2,3,4].map(i=><div key={i} className="skeleton" style={{height:70,borderRadius:16}}/>)}
+      </div>
+      {/* Card skeleton */}
+      <div style={{background:"var(--sur)",border:"1px solid var(--bdr)",borderRadius:16,padding:16}}>
+        <div className="skeleton" style={{height:14,width:"50%",marginBottom:12}}/>
+        {[1,2,3].map(i=><div key={i} style={{display:"flex",gap:10,padding:"10px 0",borderBottom:"1px solid var(--bdr)"}}>
+          <div className="skeleton" style={{width:60,height:10,borderRadius:20,flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <div className="skeleton" style={{height:10,marginBottom:6}}/>
+            <div className="skeleton" style={{height:8,width:"60%"}}/>
+          </div>
+        </div>)}
+      </div>
     </div>
   );
 }
