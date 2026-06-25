@@ -3036,13 +3036,23 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 //  PROGRAMMES TAB
 // ══════════════════════════════════════════════════
 function ProgrammesTab({st,church,church2,M,deleteProg}){
-  const ch=CHURCHES[church]||CHURCHES.creil;
-  const progs=st.programs.filter(p=>p.churchId===church);
+  const [activeChurch,setActiveChurch]=useState(church||"creil");
+  const ch=CHURCHES[activeChurch]||CHURCHES[church]||CHURCHES.creil;
+  const progs=st.programs.filter(p=>p.churchId===activeChurch);
   return(
     <div>
+      {church2&&CHURCHES[church2]&&(
+        <div style={{display:"flex",gap:8,padding:"0 16px 12px"}}>
+          {[church,church2].map(cid=>(
+            <button key={cid} className={`btn btn-sm ${activeChurch===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch(cid)}>
+              {CHURCHES[cid].fullName}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="ph">
         <div><div className="pt">Programmes</div><div className="ps">{ch.fullName} · Feuilles avec accords · 3 pages max · 2 chants min/page</div></div>
-        <button className="btn btn-p btn-sm" onClick={()=>M.addProg(church)}>+ Créer</button>
+        <button className="btn btn-p btn-sm" onClick={()=>M.addProg(activeChurch)}>+ Créer</button>
       </div>
       {progs.length===0?<div className="card"><div className="empty"><div className="empty-icon">📄</div><div>Aucun programme créé</div></div></div>
       :progs.map(p=>(
