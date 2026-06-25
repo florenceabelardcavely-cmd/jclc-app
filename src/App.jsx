@@ -3288,7 +3288,7 @@ function RepetitionTab({st,church,isAdmin,user}){
 
   useEffect(()=>{
     sbGet("programs").then(progs=>{
-      const reps=progs.filter(p=>p.status==="repetition");
+      const reps=progs.filter(p=>p.status==="repetition"&&(p.church===church||p.churchId===church));
       setLists(reps.map(p=>{
         let songs=p.items||[];
         if(typeof songs==="string"){try{songs=JSON.parse(songs);}catch{songs=[];}}
