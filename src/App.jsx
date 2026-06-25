@@ -2467,9 +2467,7 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 //  MUSICIEN TAB
 // ══════════════════════════════════════════════════
 function MusicienTab({user,st,church}){
-  const defaultChurch=localStorage.getItem("jclc_church_"+user?.id)||church||user.church||"creil";
-  const [activeChurch,setActiveChurch]=useState(defaultChurch);
-  const cid=activeChurch;
+  const cid=church||user.church||"creil";
   const ch=CHURCHES[cid];
   const today=new Date();today.setHours(0,0,0,0);
   const upcomingProgs=st.programs.filter(p=>p.churchId===cid&&p.date&&new Date(p.date+"T00:00:00")>=today).sort((a,b)=>new Date(a.date)-new Date(b.date));
@@ -2515,8 +2513,6 @@ function MusicienTab({user,st,church}){
     return()=>clearInterval(scrollTimer.current);
   },[autoScroll]);
   const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
-  const hasChurch2=user.church2&&CHURCHES[user.church2];
-
   if(viewIdx!==null){
     const item=items[viewIdx];
     if(!item){setViewIdx(null);return null;}
@@ -3060,20 +3056,10 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 //  PROGRAMMES TAB
 // ══════════════════════════════════════════════════
 function ProgrammesTab({st,church,church2,M,deleteProg}){
-  const [activeChurch,setActiveChurch]=useState(church||"creil");
-  const ch=CHURCHES[activeChurch]||CHURCHES[church]||CHURCHES.creil;
-  const progs=st.programs.filter(p=>p.churchId===activeChurch);
+  const ch=CHURCHES[church]||CHURCHES.creil;
+  const progs=st.programs.filter(p=>p.churchId===church);
   return(
     <div>
-      {church2&&CHURCHES[church2]&&(
-        <div style={{display:"flex",gap:8,padding:"0 16px 12px"}}>
-          {[church,church2].map(cid=>(
-            <button key={cid} className={`btn btn-sm ${activeChurch===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch(cid)}>
-              {CHURCHES[cid].fullName}
-            </button>
-          ))}
-        </div>
-      )}
       <div className="ph">
         <div><div className="pt">Programmes</div><div className="ps">{ch.fullName} · Feuilles avec accords · 3 pages max · 2 chants min/page</div></div>
         <button className="btn btn-p btn-sm" onClick={()=>M.addProg(activeChurch)}>+ Créer</button>
