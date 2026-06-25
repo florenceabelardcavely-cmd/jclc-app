@@ -2621,7 +2621,7 @@ function MusicienTab({user,st,church}){
     <div>
       {hasChurch2&&(
         <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
-          {[defaultChurch,user.church2].map(c=>(
+          {[user.church,user.church2].map(c=>(
             <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
               onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);try{localStorage.setItem("jclc_church_"+user?.id,c);}catch{};}}>
               {CHURCHES[c]?.fullName||c}
@@ -2638,7 +2638,7 @@ function MusicienTab({user,st,church}){
     <div>
       {hasChurch2&&(
         <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
-          {[defaultChurch,user.church2].map(c=>(
+          {[user.church,user.church2].map(c=>(
             <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
               onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);try{localStorage.setItem("jclc_church_"+user?.id,c);}catch{};}}>
               {CHURCHES[c]?.fullName||c}
