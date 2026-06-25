@@ -1755,7 +1755,15 @@ export default function App() {
   },[]);
 
   const [user, setUser]= useState(()=>{
-    try{const u=localStorage.getItem("jclc_user");return u?JSON.parse(u):null;}catch{return null;}
+    try{
+      const u=localStorage.getItem("jclc_user");
+      if(!u)return null;
+      const parsed=JSON.parse(u);
+      const loginTime=parsed.loginTime||0;
+      const eightHours=8*60*60*1000;
+      if(Date.now()-loginTime>eightHours){localStorage.removeItem("jclc_user");return null;}
+      return parsed;
+    }catch{return null;}
   });
   const [loginId, setLoginId] = useState("admin");
   const [loginSearch, setLoginSearch] = useState("");
@@ -1959,7 +1967,7 @@ export default function App() {
         const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
         const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
         window.__jclcMemberPin=(m.pin||"0000");
-        setUser(userData);localStorage.setItem("jclc_user",JSON.stringify(userData));
+        setUser({...userData,loginTime:Date.now()});localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));
         setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
       }
       return;
