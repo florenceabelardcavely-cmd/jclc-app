@@ -1761,7 +1761,7 @@ export default function App() {
       const parsed=JSON.parse(u);
       const loginTime=parsed.loginTime||0;
       const eightHours=8*60*60*1000;
-      if(Date.now()-loginTime>eightHours){localStorage.removeItem("jclc_user");return null;}
+      if(Date.now()-loginTime>eightHours){localStorage.removeItem("jclc_user");localStorage.setItem("jclc_session_expired","1");return null;}
       return parsed;
     }catch{return null;}
   });
@@ -1769,6 +1769,11 @@ export default function App() {
   const [loginSearch, setLoginSearch] = useState("");
   const [changePinModal, setChangePinModal] = useState(false);
   const [loginPwd, setLoginPwd] = useState("");
+  const [sessionExpired,setSessionExpired]=useState(()=>{
+    const exp=localStorage.getItem("jclc_session_expired");
+    if(exp){localStorage.removeItem("jclc_session_expired");return true;}
+    return false;
+  });
   const [loginPin, setLoginPin] = useState(["","","",""]);
   const [loginErr, setLoginErr] = useState("");
   const [loginAttempts, setLoginAttempts] = useState(0);
@@ -2061,6 +2066,7 @@ export default function App() {
             <div style={{marginBottom:14}}>
               <label className="llabel">Mot de passe</label>
               <div style={{position:"relative"}}>
+                {sessionExpired&&<div className="ib amb" style={{marginBottom:12,textAlign:"center"}}>⏱️ Session expirée après 8h. Veuillez vous reconnecter.</div>}
                 <input className="lsel" type={showPwd?"text":"password"} placeholder="••••••••" value={loginPwd}
                   onChange={e=>{setLoginPwd(e.target.value);setLoginErr("");}} onKeyDown={e=>e.key==="Enter"&&login()}
                   disabled={loginLocked} style={{marginBottom:0,paddingRight:46}}/>
@@ -2461,7 +2467,7 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 //  MUSICIEN TAB
 // ══════════════════════════════════════════════════
 function MusicienTab({user,st,church}){
-  const defaultChurch=church||user.church||"creil";
+  const defaultChurch=localStorage.getItem("jclc_church_"+user?.id)||church||user.church||"creil";
   const [activeChurch,setActiveChurch]=useState(defaultChurch);
   const cid=activeChurch;
   const ch=CHURCHES[cid];
@@ -2617,7 +2623,7 @@ function MusicienTab({user,st,church}){
         <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
           {[defaultChurch,user.church2].map(c=>(
             <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
-              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);}}>
+              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);try{localStorage.setItem("jclc_church_"+user?.id,c);}catch{};}}>
               {CHURCHES[c]?.fullName||c}
             </button>
           ))}
@@ -2634,7 +2640,7 @@ function MusicienTab({user,st,church}){
         <div style={{display:"flex",gap:8,padding:"12px 16px 0"}}>
           {[defaultChurch,user.church2].map(c=>(
             <button key={c} className={`btn btn-sm ${activeChurch===c?"btn-p":"btn-g"}`}
-              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);}}>
+              onClick={()=>{setActiveChurch(c);setProgIdx(0);setViewIdx(null);try{localStorage.setItem("jclc_church_"+user?.id,c);}catch{};}}>
               {CHURCHES[c]?.fullName||c}
             </button>
           ))}
