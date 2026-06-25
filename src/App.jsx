@@ -1757,23 +1757,6 @@ export default function App() {
   const [user, setUser]= useState(()=>{
     try{const u=localStorage.getItem("jclc_user");return u?JSON.parse(u):null;}catch{return null;}
   });
-  const [tabHistory,setTabHistory]=useState([]);
-
-  // Gestion bouton retour
-  useEffect(()=>{
-    const onPop=()=>{
-      if(modal){setModal(null);window.history.pushState(null,"",window.location.href);return;}
-      if(tabHistory.length>0){
-        const prev=tabHistory[tabHistory.length-1];
-        setTabHistory(h=>h.slice(0,-1));
-        setTab(prev);
-        window.history.pushState(null,"",window.location.href);
-      }
-    };
-    window.history.pushState(null,"",window.location.href);
-    window.addEventListener("popstate",onPop);
-    return()=>window.removeEventListener("popstate",onPop);
-  },[modal,tabHistory]);
   const [loginId, setLoginId] = useState("admin");
   const [loginSearch, setLoginSearch] = useState("");
   const [changePinModal, setChangePinModal] = useState(false);
