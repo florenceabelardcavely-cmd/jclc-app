@@ -1295,17 +1295,21 @@ input,select,textarea{font-family:inherit;}
 .cs-s{font-style:italic;font-weight:700;font-size:12px;color:var(--txt3);margin:10px 0 3px;}
 .cs-c{color:#CC1F00;font-weight:700;white-space:pre;}
 .cs-l{white-space:pre;}
-.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1A1916 0%,#2D2B6B 50%,#3D2A7A 100%);padding:20px;}
-.lcard{width:380px;background:rgba(255,255,255,.08);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:36px 32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4);}
-.ltitle{font-size:26px;font-weight:800;color:#fff;margin-bottom:4px;letter-spacing:-.4px;}
-.lsub{font-size:12px;color:rgba(255,255,255,.45);margin-bottom:28px;letter-spacing:.5px;text-transform:uppercase;}
-.llabel{display:block;font-size:11px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;text-align:left;}
-.lsel{width:100%;padding:12px 14px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.15);border-radius:10px;color:#fff;font-size:14px;margin-bottom:14px;outline:none;}
-.lsel option{background:#2D2B6B;color:#fff;}
-.lbtn{width:100%;padding:14px;background:linear-gradient(135deg,#4F46E5,#6366F1);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:800;margin-top:6px;transition:all .2s;letter-spacing:.2px;}
-.lbtn:hover:not(:disabled){background:linear-gradient(135deg,#3730a3,#4F46E5);transform:translateY(-1px);}
-.lbtn:disabled{opacity:.5;}
-.lnote{font-size:10px;color:rgba(255,255,255,.2);line-height:1.7;margin-top:14px;}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 0%,#2D1B4E 0%,#0D0D1A 60%,#0A0A0A 100%);padding:20px;position:relative;overflow:hidden;}
+.login::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 20% 50%,rgba(245,158,11,.08) 0%,transparent 50%),radial-gradient(ellipse at 80% 20%,rgba(99,102,241,.1) 0%,transparent 50%);pointer-events:none;}
+.lcard{width:400px;background:rgba(255,255,255,.05);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,.08);border-radius:32px;padding:44px 36px;text-align:center;box-shadow:0 40px 80px rgba(0,0,0,.6),0 0 0 1px rgba(245,158,11,.05),inset 0 1px 0 rgba(255,255,255,.08);position:relative;z-index:1;}
+.lcard::before{content:"";position:absolute;top:-1px;left:50%;transform:translateX(-50%);width:60%;height:1px;background:linear-gradient(90deg,transparent,rgba(245,158,11,.4),transparent);}
+.ltitle{font-size:28px;font-weight:900;color:#fff;margin-bottom:4px;letter-spacing:-.6px;text-shadow:0 0 40px rgba(245,158,11,.3);}
+.lsub{font-size:11px;color:rgba(255,255,255,.35);margin-bottom:32px;letter-spacing:2px;text-transform:uppercase;}
+.llabel{display:block;font-size:10px;font-weight:700;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;text-align:left;}
+.lsel{width:100%;padding:13px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#fff;font-size:14px;margin-bottom:14px;outline:none;transition:border .2s;}
+.lsel:focus{border-color:rgba(245,158,11,.4);background:rgba(255,255,255,.08);}
+.lsel option{background:#1A1A2E;color:#fff;}
+.lbtn{width:100%;padding:16px;background:linear-gradient(135deg,#D97706,#F59E0B,#FBBF24);border:none;border-radius:14px;color:#0D0D0D;font-size:15px;font-weight:900;margin-top:8px;transition:all .2s;letter-spacing:.3px;box-shadow:0 8px 32px rgba(245,158,11,.35);}
+.lbtn:hover:not(:disabled){background:linear-gradient(135deg,#B45309,#D97706,#F59E0B);transform:translateY(-2px);box-shadow:0 12px 40px rgba(245,158,11,.45);}
+.lbtn:active:not(:disabled){transform:translateY(0);}
+.lbtn:disabled{opacity:.4;box-shadow:none;}
+.lnote{font-size:10px;color:rgba(255,255,255,.15);line-height:1.7;margin-top:14px;}
 .verset-banner{background:linear-gradient(135deg,rgba(79,70,229,.12) 0%,rgba(184,134,11,.08) 100%);border:1px solid rgba(79,70,229,.15);border-radius:var(--r);padding:18px 20px;margin-bottom:20px;}
 .verset-label{font-size:10px;color:rgba(0,0,0,.4);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px;font-weight:600;}
 .verset-text{font-family:'Lora',serif;font-size:15px;font-style:italic;color:var(--txt);margin-bottom:5px;line-height:1.7;}
