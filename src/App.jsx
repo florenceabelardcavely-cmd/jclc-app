@@ -1728,6 +1728,19 @@ export default function App() {
         return n;
       });
       setAppLoaded(true);
+      // Auto-archivage des programmes passés
+      setSt(s=>{
+        const n=JSON.parse(JSON.stringify(s));
+        const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);yesterday.setHours(23,59,59,0);
+        const toArchive=n.programs.filter(p=>p.status==="draft"&&p.date&&new Date(p.date+"T00:00:00")<=yesterday);
+        if(toArchive.length>0){
+          toArchive.forEach(p=>{
+            p.status="archived";
+            sbUpsert("programs",{id:p.id,title:p.title||"",church:p.churchId||p.church||"creil",date:p.date||"",pages:p.pages||1,items:p.items||[],notes:p.notes||"",status:"archived"});
+          });
+        }
+        return n;
+      });
     })();
   },[]);
 
