@@ -3149,11 +3149,13 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 // ══════════════════════════════════════════════════
 //  PROGRAMMES TAB
 // ══════════════════════════════════════════════════
-function ProgrammesTab({st,church,church2,M,deleteProg}){
+function ProgrammesTab({st,church,church2,M,deleteProg,archiveProg,duplicateProg}){
   const [activeChurch,setActiveChurch]=useState(church||"creil");
+  const [view,setView]=useState("actifs");
   useEffect(()=>{setActiveChurch(church||"creil");},[church]);
   const ch=CHURCHES[activeChurch]||CHURCHES[church]||CHURCHES.creil;
-  const progs=st.programs.filter(p=>p.churchId===activeChurch&&p.status!=="repetition");
+  const allProgs=st.programs.filter(p=>p.churchId===activeChurch&&p.status!=="repetition");
+  const progs=view==="actifs"?allProgs.filter(p=>p.status!=="archived"):allProgs.filter(p=>p.status==="archived");
   return(
     <div>
       {church2&&CHURCHES[church2]&&(
@@ -3167,7 +3169,15 @@ function ProgrammesTab({st,church,church2,M,deleteProg}){
       )}
       <div className="ph">
         <div><div className="pt">Programmes</div><div className="ps">{ch.fullName} · Feuilles avec accords · 3 pages max · 2 chants min/page</div></div>
-        <button className="btn btn-p btn-sm" onClick={()=>M.addProg(activeChurch)}>+ Créer</button>
+        {view==="actifs"&&<button className="btn btn-p btn-sm" onClick={()=>M.addProg(activeChurch)}>+ Créer</button>}
+      </div>
+      <div style={{display:"flex",gap:8,padding:"0 0 14px"}}>
+        <button className={`btn btn-sm ${view==="actifs"?"btn-p":"btn-g"}`} onClick={()=>setView("actifs")}>
+          📄 Actifs ({allProgs.filter(p=>p.status!=="archived").length})
+        </button>
+        <button className={`btn btn-sm ${view==="archives"?"btn-p":"btn-g"}`} onClick={()=>setView("archives")}>
+          🗄️ Archives ({allProgs.filter(p=>p.status==="archived").length})
+        </button>
       </div>
       {progs.length===0?<div className="card"><div className="empty"><div className="empty-icon">📄</div><div>Aucun programme créé</div></div></div>
       :progs.map(p=>(
@@ -3201,7 +3211,9 @@ function ProgrammesTab({st,church,church2,M,deleteProg}){
               a.download=`${(p.title||"programme").replace(/[^a-zA-Z0-9]/g,"_")}_ProPresenter.txt`;
               a.click();
             }}>📺 ProPresenter</button>
-            <button className="btn btn-g btn-sm" onClick={()=>M.editProg(p)}>✏️</button>
+            {view==="actifs"&&<button className="btn btn-g btn-sm" onClick={()=>M.editProg(p)}>✏️</button>}
+            {view==="actifs"&&archiveProg&&<button className="btn btn-amb btn-sm" title="Archiver" onClick={()=>archiveProg(p.id)}>🗄️</button>}
+            {view==="archives"&&duplicateProg&&<button className="btn btn-grn btn-sm" onClick={()=>duplicateProg(p)}>📋 Réutiliser</button>}
             <button className="btn btn-d btn-xs btn-ic" onClick={()=>deleteProg(p.id)}>🗑</button>
           </div>
           {p.items.length>0&&(
