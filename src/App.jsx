@@ -2172,8 +2172,8 @@ export default function App() {
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
   const [presentMode,setPresentMode_]=useState(false);
   const swipe=useSwipe(
-    ()=>{if(presentMode)return;const i=tabs.findIndex(t=>t.id===tab);if(i<tabs.length-1)setTab(tabs[i+1].id);},
-    ()=>{if(presentMode)return;const i=tabs.findIndex(t=>t.id===tab);if(i>0)setTab(tabs[i-1].id);}
+    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i<tabs.length-1)setTab(tabs[i+1].id);},
+    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i>0)setTab(tabs[i-1].id);}
   );
 
   const M={
@@ -2195,7 +2195,7 @@ export default function App() {
   return(
     <>
       <style>{CSS}</style>
-      <div className="app">
+      <div className="app" {...swipe}>
         {showFlyerModal&&<FlyerModal church={showFlyerModal} st={st} month={month} year={year} onClose={()=>setShowFlyerModal(null)}/>}
       {toast&&<div className="toast">{toast.icon} {toast.msg}</div>}
 
@@ -2251,7 +2251,7 @@ export default function App() {
           </div>
         )}
 
-        <main className="main" {...swipe}>
+        <main className="main">
           {!appLoaded&&user&&<SkeletonLoader/>}
           {isAdmin&&["disponibilites","planning","calendrier","programmes","statistiques"].includes(tab)&&(
             <div className="csw">
@@ -2708,7 +2708,7 @@ function MusicienTab({user,st,church}){
     const dispKey=getKey(sid,origKey);
     const st_=semit(origKey,dispKey);
     return(
-      <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+      <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}} onTouchStart={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onTouchEnd={e=>e.stopPropagation()}>
         {/* Barre du haut */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(0,0,0,.6)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0,flexWrap:"wrap"}}>
           <button className="btn btn-g btn-sm" onClick={()=>setViewIdx(null)}>← Liste</button>
