@@ -2699,6 +2699,15 @@ function MusicienTab({user,st,church}){
     return()=>clearInterval(scrollTimer.current);
   },[autoScroll]);
   const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
+  useEffect(()=>{
+    if(viewIdx!==null){
+      document.body.style.overflow="hidden";
+    } else {
+      document.body.style.overflow="";
+    }
+    return()=>{document.body.style.overflow="";};
+  },[viewIdx]);
+
   if(viewIdx!==null){
     const item=items[viewIdx];
     if(!item){setViewIdx(null);return null;}
@@ -2708,7 +2717,7 @@ function MusicienTab({user,st,church}){
     const dispKey=getKey(sid,origKey);
     const st_=semit(origKey,dispKey);
     return(
-      <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,width:"100vw",height:"100vh",background:"#0f172a",color:"#f1f5f9",zIndex:99999,display:"flex",flexDirection:"column",overflow:"hidden",margin:0,padding:0,boxSizing:"border-box"}} onTouchStart={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onTouchEnd={e=>e.stopPropagation()}>
+      <div style={{position:"fixed",top:"0px",left:"0px",width:"100vw",height:"100vh",background:"#0f172a",color:"#f1f5f9",zIndex:99999,display:"flex",flexDirection:"column",overflow:"hidden",margin:"0px",padding:"0px",transform:"none"}} onTouchStart={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onTouchEnd={e=>e.stopPropagation()}>
         {/* Barre du haut */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(0,0,0,.6)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0,flexWrap:"wrap"}}>
           <button className="btn btn-g btn-sm" onClick={()=>setViewIdx(null)}>← Liste</button>
