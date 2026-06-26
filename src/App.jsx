@@ -2330,7 +2330,7 @@ export default function App() {
             <span className="husr">{user.name}</span>
             <span className={`pill ${pillCls}`}>{user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
             {user.role!=="admin"&&user.role!=="pasteur"&&<button className="btn btn-g btn-sm" title="Changer mon code PIN" onClick={()=>setChangePinModal(true)}>🔐 PIN</button>}
-            <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");setTab_("accueil");setTabKey(0);}}>Déconnexion</button>
+            <button className="btn btn-g btn-sm" onClick={()=>{setTab_("accueil");setTabKey(0);setUser(null);localStorage.removeItem("jclc_user");}}>Déconnexion</button>
           </div>
         </header>
 
@@ -2361,7 +2361,7 @@ export default function App() {
             </div>
           )}
 
-          <div key={tabKey} className="tab-enter">
+          <div className="tab-enter">
           {tab==="accueil"       &&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
