@@ -1953,7 +1953,19 @@ export default function App() {
     sbUpsert("programs",row);
     toast_("Programme mis à jour","✏️");
   };
-  const deleteProg=id=>{upd(x=>x.programs=x.programs.filter(p=>p.id!==id));sbDel("programs",id);toast_("Programme supprimé","🗑️");};
+  const deleteProg=id=>{if(!window.confirm("Supprimer ce programme ?"))return;upd(x=>x.programs=x.programs.filter(p=>p.id!==id));sbDel("programs",id);toast_("Programme supprimé","🗑️");};
+  const archiveProg=id=>{
+    upd(x=>{const p=x.programs.find(p=>p.id===id);if(p)p.status="archived";});
+    const p=st.programs.find(p=>p.id===id);
+    if(p)sbUpsert("programs",{id:p.id,title:p.title||"",church:p.churchId||p.church||myChurch,date:p.date||"",pages:p.pages||1,items:p.items||[],notes:p.notes||"",status:"archived"});
+    toast_("Programme archivé","🗄️");
+  };
+  const duplicateProg=p=>{
+    const np={...p,id:uid(),title:(p.title||"Programme")+" (copie)",date:"",status:"draft",churchId:p.churchId||p.church||myChurch};
+    upd(x=>x.programs.push(np));
+    sbUpsert("programs",{id:np.id,title:np.title,church:np.churchId,date:"",pages:np.pages||1,items:np.items||[],notes:np.notes||"",status:"draft"});
+    toast_("Programme dupliqué — modifiez la date !","📋");
+  };
 
   const prevMonth=()=>{if(month===0){setMonth(11);setYear(y=>y-1);}else setMonth(m=>m-1);};
   const nextMonth=()=>{if(month===11){setMonth(0);setYear(y=>y+1);}else setMonth(m=>m+1);};
