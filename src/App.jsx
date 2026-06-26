@@ -2227,7 +2227,6 @@ export default function App() {
 
         <main className="main">
           {!appLoaded&&user&&<SkeletonLoader/>}
-          {(!user||appLoaded)&&<div className="fade-in">
           {isAdmin&&["disponibilites","planning","calendrier","programmes","statistiques"].includes(tab)&&(
             <div className="csw">
               {Object.values(CHURCHES).map(c=>(
@@ -2257,7 +2256,7 @@ export default function App() {
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
           {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>}
-        </div></main>
+        </main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
       </div>
