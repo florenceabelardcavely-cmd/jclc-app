@@ -1816,8 +1816,7 @@ export default function App() {
   const [loginLocked, setLoginLocked] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [tab, setTab_]  = useState("accueil");
-  const [tabKey, setTabKey] = useState(0);
-  const setTab=(t)=>{setTab_(t);setTabKey(k=>k+1);};
+  const setTab=(t)=>{setTab_(t);};
   const [church, setChurch] = useState("creil");
   const [modal, setModal]   = useState(null);
   const [toast, setToast]   = useState(null);
@@ -2266,7 +2265,6 @@ export default function App() {
             </div>
           )}
 
-          <div key={tabKey} className="tab-enter">
           {tab==="accueil"       &&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
@@ -2283,7 +2281,6 @@ export default function App() {
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
           {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>}
-          </div>
         </main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
