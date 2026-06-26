@@ -2755,7 +2755,7 @@ function MusicienTab({user,st,church}){
             })}
           </div>
           {/* Chant - colonne droite */}
-          <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 28px"}}>
+          <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 28px 120px"}}>
             {(songData.sections&&songData.sections.length>0)?(
               <div style={{display:"flex",flexDirection:"column",gap:20}}>
                 {songData.sections.map((sec,si)=>(
