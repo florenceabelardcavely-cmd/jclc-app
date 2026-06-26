@@ -2139,7 +2139,7 @@ export default function App() {
   const unreadNotifs=st.memberNotifications?.filter(n=>!n.seen)||[];
 
   // ─── ÉCRAN LOGIN ───
-  if(!user&&!showBiometricPrompt) return(
+  if(!user) return(
     <>
       <style>{CSS}</style>
       {showBiometricPrompt&&(
