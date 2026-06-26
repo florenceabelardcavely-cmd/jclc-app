@@ -2170,6 +2170,10 @@ export default function App() {
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
+  const swipe=useSwipe(
+    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i<tabs.length-1)setTab(tabs[i+1].id);},
+    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i>0)setTab(tabs[i-1].id);}
+  );
 
   const M={
     addMember:(cid)=>setModal({t:"addMember",cid}),
@@ -2246,7 +2250,7 @@ export default function App() {
           </div>
         )}
 
-        <main className="main">
+        <main className="main" {...swipe}>
           {!appLoaded&&user&&<SkeletonLoader/>}
           {isAdmin&&["disponibilites","planning","calendrier","programmes","statistiques"].includes(tab)&&(
             <div className="csw">
@@ -2573,6 +2577,25 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
   );
 }
 
+
+// ══════════════════════════════════════════════════
+//  SWIPE HOOK
+// ══════════════════════════════════════════════════
+function useSwipe(onSwipeLeft, onSwipeRight){
+  const touchStart=useRef(null);
+  const touchEnd=useRef(null);
+  const minSwipe=60;
+  const onTouchStart=(e)=>{touchStart.current=e.targetTouches[0].clientX;touchEnd.current=null;};
+  const onTouchMove=(e)=>{touchEnd.current=e.targetTouches[0].clientX;};
+  const onTouchEnd=()=>{
+    if(!touchStart.current||!touchEnd.current)return;
+    const dist=touchStart.current-touchEnd.current;
+    if(Math.abs(dist)<minSwipe)return;
+    if(dist>0)onSwipeLeft();
+    else onSwipeRight();
+  };
+  return{onTouchStart,onTouchMove,onTouchEnd};
+}
 
 // ══════════════════════════════════════════════════
 //  SKELETON LOADER
