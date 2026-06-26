@@ -1810,74 +1810,6 @@ export default function App() {
     if(exp){localStorage.removeItem("jclc_session_expired");return true;}
     return false;
   });
-  const [biometricAvailable,setBiometricAvailable]=useState(false);
-  const [showBiometricPrompt,setShowBiometricPrompt]=useState(false);
-  const [biometricEnabled,setBiometricEnabled]=useState(()=>!!localStorage.getItem("jclc_biometric_user"));
-  const [biometricLoading,setBiometricLoading]=useState(false);
-
-  // Vérifier si la biométrie est disponible
-  useEffect(()=>{
-    if(window.PublicKeyCredential){
-      window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
-        .then(available=>setBiometricAvailable(available))
-        .catch(()=>setBiometricAvailable(false));
-    }
-  },[]);
-
-  async function enableBiometric(userData){
-    try{
-      const challenge=new Uint8Array(32);
-      crypto.getRandomValues(challenge);
-      const credential=await navigator.credentials.create({
-        publicKey:{
-          challenge,
-          rp:{name:"JCLC Louange",id:window.location.hostname},
-          user:{id:new TextEncoder().encode(userData.id),name:userData.name,displayName:userData.name},
-          pubKeyCredParams:[{alg:-7,type:"public-key"},{alg:-257,type:"public-key"}],
-          authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},
-          timeout:60000,
-        }
-      });
-      if(credential){
-        localStorage.setItem("jclc_biometric_user",JSON.stringify(userData));
-        localStorage.setItem("jclc_biometric_id",credential.id);
-        setBiometricEnabled(true);
-        return true;
-      }
-    }catch(e){console.log("Biometric setup failed:",e);}
-    return false;
-  }
-
-  async function loginWithBiometric(){
-    setBiometricLoading(true);
-    try{
-      const savedUser=localStorage.getItem("jclc_biometric_user");
-      const credId=localStorage.getItem("jclc_biometric_id");
-      if(!savedUser||!credId){setBiometricLoading(false);return;}
-      const challenge=new Uint8Array(32);
-      crypto.getRandomValues(challenge);
-      const assertion=await navigator.credentials.get({
-        publicKey:{
-          challenge,
-          allowCredentials:[{id:base64ToBuffer(credId),type:"public-key"}],
-          userVerification:"required",
-          timeout:60000,
-        }
-      });
-      if(assertion){
-        const userData={...JSON.parse(savedUser),loginTime:Date.now()};
-        setUser(userData);
-        localStorage.setItem("jclc_user",JSON.stringify(userData));
-        setTab("accueil");
-      }
-    }catch(e){console.log("Biometric login failed:",e);}
-    setBiometricLoading(false);
-  }
-
-  function base64ToBuffer(base64){
-    const bin=atob(base64.replace(/-/g,"+").replace(/_/g,"/"));
-    return new Uint8Array([...bin].map(c=>c.charCodeAt(0))).buffer;
-  }
   const [loginPin, setLoginPin] = useState(["","","",""]);
   const [loginErr, setLoginErr] = useState("");
   const [loginAttempts, setLoginAttempts] = useState(0);
@@ -2072,10 +2004,7 @@ export default function App() {
         return;
       }
       const u=loginId==="admin"?{id:"admin",name:"Administrateur",role:"admin",church:"both"}:{id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"};
-      const uWithTime={...u,loginTime:Date.now()};setUser(uWithTime);localStorage.setItem("jclc_user",JSON.stringify(uWithTime));setLoginPwd("");setLoginAttempts(0);
-      if(biometricAvailable&&!biometricEnabled){setShowBiometricPrompt(uWithTime);}
-      else{setTab("accueil");}
-      return;
+      const uWithTime={...u,loginTime:Date.now()};setUser(uWithTime);localStorage.setItem("jclc_user",JSON.stringify(uWithTime));setLoginPwd("");setLoginAttempts(0);setTab("accueil");return;
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
@@ -2093,11 +2022,8 @@ export default function App() {
         const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
         const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
         window.__jclcMemberPin=(m.pin||"0000");
-        const udWithTime={...userData,loginTime:Date.now()};
-        setUser(udWithTime);localStorage.setItem("jclc_user",JSON.stringify(udWithTime));
-        setLoginPin(["","","",""]);setLoginAttempts(0);
-        if(biometricAvailable&&!biometricEnabled){setShowBiometricPrompt(udWithTime);}
-        else{setTab("accueil");}
+        setUser({...userData,loginTime:Date.now()});localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));
+        setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
       }
       return;
     }
@@ -2142,22 +2068,6 @@ export default function App() {
   if(!user) return(
     <>
       <style>{CSS}</style>
-      {showBiometricPrompt&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:20}}>
-          <div style={{background:"#16161F",border:"1px solid rgba(255,255,255,.1)",borderRadius:24,padding:"32px 28px",maxWidth:360,width:"100%",textAlign:"center"}}>
-            <div style={{fontSize:48,marginBottom:12}}>🔐</div>
-            <div style={{fontWeight:900,fontSize:20,color:"#fff",marginBottom:8}}>Activer Face ID / Touch ID ?</div>
-            <div style={{fontSize:13,color:"rgba(255,255,255,.5)",marginBottom:24,lineHeight:1.6}}>Connectez-vous plus rapidement sans saisir votre code PIN à chaque fois.</div>
-            <button onClick={async()=>{const ok=await enableBiometric(showBiometricPrompt);setShowBiometricPrompt(false);setTab("accueil");}} style={{width:"100%",padding:"14px",background:"linear-gradient(135deg,#D97706,#F59E0B)",border:"none",borderRadius:12,color:"#0A0A0F",fontWeight:900,fontSize:15,cursor:"pointer",marginBottom:10}}>
-              ✓ Activer la biométrie
-            </button>
-            <button onClick={()=>{setShowBiometricPrompt(false);setTab("accueil");}} style={{width:"100%",padding:"12px",background:"transparent",border:"1px solid rgba(255,255,255,.15)",borderRadius:12,color:"rgba(255,255,255,.5)",fontSize:13,cursor:"pointer"}}>
-              Plus tard
-            </button>
-            {biometricEnabled&&<button onClick={()=>{localStorage.removeItem("jclc_biometric_user");localStorage.removeItem("jclc_biometric_id");setBiometricEnabled(false);setShowBiometricPrompt(false);setTab("accueil");}} style={{marginTop:8,background:"none",border:"none",color:"rgba(255,255,255,.3)",fontSize:11,cursor:"pointer"}}>Désactiver la biométrie</button>}
-          </div>
-        </div>
-      )}
       <div className="login">
         <div className="lcard">
           <img src={LOGO_B64} alt="JCLC" style={{width:88,height:88,objectFit:"contain",filter:"drop-shadow(0 4px 20px rgba(255,170,0,.4))",marginBottom:18}}/>
@@ -2239,11 +2149,6 @@ export default function App() {
           )}
 
           {loginErr&&<div style={{background:"rgba(220,38,38,.15)",border:"1px solid rgba(220,38,38,.35)",borderRadius:8,padding:"9px 13px",fontSize:12,color:"#FCA5A5",marginBottom:12,textAlign:"center",lineHeight:1.5}}>⚠️ {loginErr}</div>}
-          {biometricAvailable&&biometricEnabled&&!loginId&&(
-            <button onClick={loginWithBiometric} disabled={biometricLoading} style={{width:"100%",padding:"14px",background:"linear-gradient(135deg,#1A1830,#2D2B6B)",border:"1px solid rgba(255,255,255,.15)",borderRadius:14,color:"#fff",fontSize:15,fontWeight:800,marginBottom:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
-              {biometricLoading?"⏳ Vérification...":"🔐 Se connecter avec Face ID / Touch ID"}
-            </button>
-          )}
 
           <button className="lbtn" onClick={login} disabled={loginLocked||(isAdminLogin?!loginPwd:loginPin.some(d=>d===""))}>
             {loginLocked?"⏳ Bloqué temporairement…":"Se connecter →"}
