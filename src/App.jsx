@@ -1240,16 +1240,10 @@ input,select,textarea{font-family:inherit;}
 .toast{position:fixed;bottom:88px;right:16px;background:linear-gradient(135deg,#1A1830,#2D2B6B);color:#fff;padding:12px 18px;border-radius:14px;font-size:13px;font-weight:600;z-index:300;box-shadow:0 8px 32px rgba(79,70,229,.3),0 0 0 1px rgba(255,255,255,.1);animation:slideUp .25s cubic-bezier(.34,1.56,.64,1);backdrop-filter:blur(20px);}
 @keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
-.tab-enter{animation:fadeIn .25s cubic-bezier(.4,0,.2,1) forwards;}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skeleton{background:linear-gradient(90deg,var(--sur2) 25%,var(--bdr) 50%,var(--sur2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;}
 .fade-in{animation:fadeIn .3s ease forwards;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
-@keyframes slideInLeft{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
-.tab-enter{animation:fadeIn .25s cubic-bezier(.4,0,.2,1) forwards;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .fade-in{animation:fadeIn .3s ease forwards;}
 .pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
@@ -1815,8 +1809,7 @@ export default function App() {
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [loginLocked, setLoginLocked] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-  const [tab, setTab_]  = useState("accueil");
-  const setTab=(t)=>{setTab_(t);};
+  const [tab, setTab]  = useState("accueil");
   const [church, setChurch] = useState("creil");
   const [modal, setModal]   = useState(null);
   const [toast, setToast]   = useState(null);
@@ -2169,11 +2162,6 @@ export default function App() {
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
-  const [presentMode,setPresentMode_]=useState(false);
-  const swipe=useSwipe(
-    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i<tabs.length-1)setTab(tabs[i+1].id);},
-    ()=>{const i=tabs.findIndex(t=>t.id===tab);if(i>0)setTab(tabs[i-1].id);}
-  );
 
   const M={
     addMember:(cid)=>setModal({t:"addMember",cid}),
@@ -2194,7 +2182,7 @@ export default function App() {
   return(
     <>
       <style>{CSS}</style>
-      <div className="app" {...swipe}>
+      <div className="app">
         {showFlyerModal&&<FlyerModal church={showFlyerModal} st={st} month={month} year={year} onClose={()=>setShowFlyerModal(null)}/>}
       {toast&&<div className="toast">{toast.icon} {toast.msg}</div>}
 
@@ -2577,39 +2565,6 @@ function MonPlanningTab({user,st,year,month,prevMonth,nextMonth,activeChurch}){
 
 
 // ══════════════════════════════════════════════════
-//  SWIPE HOOK
-// ══════════════════════════════════════════════════
-function useSwipe(onSwipeLeft, onSwipeRight){
-  const touchStart=useRef(null);
-  const touchEnd=useRef(null);
-  const touchStartY=useRef(null);
-  const touchEndY=useRef(null);
-  const minSwipe=100;
-  const onTouchStart=(e)=>{
-    touchStart.current=e.targetTouches[0].clientX;
-    touchStartY.current=e.targetTouches[0].clientY;
-    touchEnd.current=null;
-    touchEndY.current=null;
-  };
-  const onTouchMove=(e)=>{
-    touchEnd.current=e.targetTouches[0].clientX;
-    touchEndY.current=e.targetTouches[0].clientY;
-  };
-  const onTouchEnd=()=>{
-    if(!touchStart.current||!touchEnd.current)return;
-    const distX=touchStart.current-touchEnd.current;
-    const distY=Math.abs(touchStartY.current-touchEndY.current);
-    // Ignorer si mouvement vertical plus grand que horizontal (scroll)
-    if(distY>Math.abs(distX)*0.7)return;
-    // Distance minimale plus grande
-    if(Math.abs(distX)<minSwipe)return;
-    if(distX>0)onSwipeLeft();
-    else onSwipeRight();
-  };
-  return{onTouchStart,onTouchMove,onTouchEnd};
-}
-
-// ══════════════════════════════════════════════════
 //  SKELETON LOADER
 // ══════════════════════════════════════════════════
 function SkeletonLoader(){
@@ -2696,15 +2651,6 @@ function MusicienTab({user,st,church}){
     return()=>clearInterval(scrollTimer.current);
   },[autoScroll]);
   const items=activeProg?(activeProg.items||activeProg.songs||[]):[];
-  useEffect(()=>{
-    if(viewIdx!==null){
-      document.body.style.overflow="hidden";
-    } else {
-      document.body.style.overflow="";
-    }
-    return()=>{document.body.style.overflow="";};
-  },[viewIdx]);
-
   if(viewIdx!==null){
     const item=items[viewIdx];
     if(!item){setViewIdx(null);return null;}
@@ -2714,7 +2660,7 @@ function MusicienTab({user,st,church}){
     const dispKey=getKey(sid,origKey);
     const st_=semit(origKey,dispKey);
     return(
-      <div style={{position:"fixed",top:0,left:0,width:"100vw",height:"100vh",background:"#0f172a",color:"#f1f5f9",zIndex:99999,display:"flex",flexDirection:"column",overflow:"hidden"}} onTouchStart={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onTouchEnd={e=>e.stopPropagation()}>
+      <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* Barre du haut */}
         <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:"rgba(0,0,0,.6)",borderBottom:"1px solid rgba(255,255,255,.1)",flexShrink:0,flexWrap:"wrap"}}>
           <button className="btn btn-g btn-sm" onClick={()=>setViewIdx(null)}>← Liste</button>
@@ -2752,7 +2698,7 @@ function MusicienTab({user,st,church}){
             })}
           </div>
           {/* Chant - colonne droite */}
-          <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 28px 120px"}}>
+          <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"20px 28px"}}>
             {(songData.sections&&songData.sections.length>0)?(
               <div style={{display:"flex",flexDirection:"column",gap:20}}>
                 {songData.sections.map((sec,si)=>(
@@ -2826,24 +2772,17 @@ function MusicienTab({user,st,church}){
       )}
       {activeProg&&(
         <>
-          {/* Hero programme */}
-          <div style={{background:"linear-gradient(135deg,#1A1830 0%,#2D2B6B 60%,#3D2A7A 100%)",borderRadius:20,margin:"0 16px 16px",padding:"20px 18px",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",top:-15,right:-15,width:80,height:80,borderRadius:"50%",background:"rgba(245,158,11,.12)"}}/>
-            <div style={{fontSize:10,fontWeight:700,color:"rgba(245,158,11,.8)",textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:6}}>{ch.fullName} · Mode OnSong</div>
-            <div style={{fontWeight:900,fontSize:20,color:"#fff",marginBottom:4}}>{activeProg.title||"Programme"}</div>
-            <div style={{fontSize:12,color:"rgba(255,255,255,.5)",marginBottom:14}}>{activeProg.date&&new Date(activeProg.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {items.length} chant(s)</div>
-            <button onClick={()=>setViewIdx(0)} style={{background:"linear-gradient(135deg,#D97706,#F59E0B)",border:"none",borderRadius:12,padding:"10px 20px",color:"#0A0A0F",fontWeight:900,fontSize:14,cursor:"pointer",boxShadow:"0 4px 16px rgba(245,158,11,.4)",display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:16}}>▶</span> Démarrer la présentation
-            </button>
+          <div className="card" style={{background:`linear-gradient(135deg,${ch.bg},white)`,border:`2px solid ${ch.color}`,margin:"0 16px 16px",display:"flex",alignItems:"center",gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{fontWeight:800,fontSize:18,color:ch.color}}>{activeProg.title||"Programme"}</div>
+              <div style={{fontSize:13,color:"var(--txt2)",marginTop:4}}>{activeProg.date&&new Date(activeProg.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {items.length} chant(s)</div>
+            </div>
+            <button className="btn btn-p" onClick={()=>setViewIdx(0)}>▶ Démarrer</button>
           </div>
-
-          {/* Notation */}
-          <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:14,padding:"0 16px"}}>
-            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>🎵 Do Ré Mi</button>
-            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>🎵 C D E</button>
+          <div style={{display:"flex",justifyContent:"center",gap:8,marginBottom:12,padding:"0 16px"}}>
+            <button className={`btn btn-xs ${notation==="fr"?"btn-p":"btn-g"}`} onClick={()=>setNotation("fr")}>Do Ré Mi</button>
+            <button className={`btn btn-xs ${notation==="en"?"btn-p":"btn-g"}`} onClick={()=>setNotation("en")}>C D E</button>
           </div>
-
-          {/* Liste des chants */}
           {items.map((item,idx)=>{
             const sid=item.songId||item.id||("item-"+idx);
             const songData=getSong(sid,item.title||item.songTitle);
@@ -2852,51 +2791,33 @@ function MusicienTab({user,st,church}){
             const st_=semit(origKey,dispKey);
             const semitones=((NOTES_FR.indexOf(dispKey)-NOTES_FR.indexOf(origKey))+12)%12;
             const hasSections=songData.sections&&songData.sections.length>0;
-            const catColors={
-              "Louange":["#EEF2FF","#4F46E5"],
-              "Adoration":["#FDF4FF","#7C3AED"],
-              "Sainte-Cène":["#FEF2F2","#DC2626"],
-              "Dîme & Offrandes":["#FFFBEB","#D97706"],
-            };
-            const [catBg,catColor]=catColors[songData.categorie]||["var(--sur2)","var(--txt2)"];
             return(
-              <div key={sid} style={{margin:"0 16px 10px",background:"var(--sur)",borderRadius:16,overflow:"hidden",boxShadow:"var(--sh)",border:"1px solid var(--bdr)",transition:"all .2s"}}>
-                {/* En-tête chant */}
-                <div style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:hasSections?"1px solid var(--bdr)":"none"}}>
-                  {/* Numéro */}
-                  <div style={{width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#4F46E5,#6366F1)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:900,fontSize:14,flexShrink:0}}>
-                    {idx+1}
-                  </div>
-                  {/* Titre + infos */}
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontWeight:800,fontSize:15,color:"var(--txt)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.title||item.songTitle||songData.title}</div>
-                    <div style={{display:"flex",gap:6,marginTop:3,flexWrap:"wrap",alignItems:"center"}}>
-                      {songData.categorie&&<span style={{background:catBg,color:catColor,padding:"1px 8px",borderRadius:20,fontSize:10,fontWeight:700}}>{songData.categorie}</span>}
-                      {songData.tempo&&<span style={{fontSize:10,color:"var(--txt3)",fontWeight:600}}>♩ {songData.tempo}</span>}
-                      {hasSections&&<span style={{fontSize:10,color:"var(--grn)",fontWeight:700}}>✓ Partition</span>}
+              <div key={sid} className="card" style={{margin:"0 16px 12px",borderLeft:`4px solid ${ch.color}`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:700,fontSize:15}}>{idx+1}. {item.title||item.songTitle||songData.title}</div>
+                    <div style={{fontSize:12,color:"var(--txt2)",marginTop:2,display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {songData.categorie&&<span style={{background:"var(--sur2)",borderRadius:4,padding:"1px 6px"}}>{songData.categorie}</span>}
+                      {songData.tempo&&<span>♩ {songData.tempo} BPM</span>}
+                      {hasSections&&<span style={{color:"var(--ind)",fontSize:11}}>✓ Partition</span>}
                     </div>
                   </div>
-                  {/* Tonalité + bouton voir */}
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,flexShrink:0}}>
-                    <div style={{fontWeight:900,fontSize:24,color:ch.color,lineHeight:1}}>{dispKey}</div>
-                    {semitones!==0&&<div style={{fontSize:9,color:"var(--txt3)",fontWeight:700}}>{semitones>6?semitones-12:semitones>0?"+"+semitones:semitones}st</div>}
-                    <button onClick={()=>setViewIdx(idx)} style={{background:"linear-gradient(135deg,#4F46E5,#6366F1)",border:"none",borderRadius:8,padding:"4px 10px",color:"#fff",fontSize:11,fontWeight:700,cursor:"pointer"}}>▶ Voir</button>
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                    <div style={{fontWeight:800,fontSize:22,color:ch.color}}>{dispKey}</div>
+                    {semitones!==0&&<div style={{fontSize:10,color:"var(--txt2)"}}>{semitones>6?semitones-12:semitones>0?"+"+semitones:semitones}st</div>}
+                    <button className="btn btn-p btn-xs" onClick={()=>setViewIdx(idx)}>▶ Voir</button>
                   </div>
                 </div>
-                {/* Touches de transposition */}
-                <div style={{padding:"10px 16px",background:"var(--sur2)",display:"flex",alignItems:"center",gap:4,flexWrap:"wrap"}}>
+                <div style={{display:"flex",alignItems:"center",gap:3,flexWrap:"wrap",marginBottom:hasSections?8:0}}>
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,-1)}>−1</button>
-                  <div style={{display:"flex",gap:2,flexWrap:"wrap",flex:1}}>
-                    {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>{const nk={...k,[sid]:n};try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})} style={{padding:"3px 7px",borderRadius:6,fontSize:10,fontWeight:700,background:dispKey===n?"#4F46E5":"var(--sur)",color:dispKey===n?"#fff":"var(--txt2)",border:`1px solid ${dispKey===n?"#4F46E5":"var(--bdr)"}`,cursor:"pointer",transition:"all .15s"}}>{n}</button>)}
-                  </div>
+                  {CUR_NOTES.map(n=><button key={n} onClick={()=>setSongKeys(k=>{const nk={...k,[sid]:n};try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})} className={`kbtn${dispKey===n?" on":""}`} style={{padding:"2px 6px",fontSize:10}}>{n}</button>)}
                   <button className="btn btn-g btn-xs" onClick={()=>changeKey(sid,origKey,+1)}>+1</button>
-                  {dispKey!==origKey&&<button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const nk={...k};delete nk[sid];try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})}>↺</button>}
+                  {dispKey!==origKey&&<button className="btn btn-g btn-xs" onClick={()=>setSongKeys(k=>{const nk={...k};delete nk[sid];try{localStorage.setItem("jclc_keys_"+user?.id,JSON.stringify(nk));}catch{}return nk;})}>↺ {origKey}</button>}
                 </div>
-                {/* Partition */}
                 {hasSections&&(
                   <details>
-                    <summary style={{fontSize:12,color:"var(--ind)",cursor:"pointer",userSelect:"none",padding:"8px 16px",background:"var(--ind-bg)",fontWeight:700}}>📄 Voir la partition</summary>
-                    <div style={{padding:"12px 16px",background:"var(--sur)",maxHeight:250,overflowY:"auto"}}>
+                    <summary style={{fontSize:12,color:"var(--ind)",cursor:"pointer",userSelect:"none",padding:"4px 0"}}>Voir la partition</summary>
+                    <div style={{marginTop:8,padding:10,background:"var(--sur2)",borderRadius:8,maxHeight:250,overflowY:"auto"}}>
                       {songData.sections.map((sec,si)=>(
                         <div key={si} style={{marginBottom:12}}>
                           <div className="cs-s">{sec.label}</div>
@@ -2913,10 +2834,8 @@ function MusicienTab({user,st,church}){
               </div>
             );
           })}
-          <div style={{display:"flex",justifyContent:"center",padding:"8px 16px 24px"}}>
-            <button onClick={()=>setViewIdx(0)} style={{background:"linear-gradient(135deg,#1A1830,#2D2B6B)",border:"none",borderRadius:14,padding:"12px 24px",color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",boxShadow:"0 4px 20px rgba(79,70,229,.3)",display:"flex",alignItems:"center",gap:8}}>
-              <span>▶</span> Mode présentation plein écran
-            </button>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
+            <button className="btn btn-p" onClick={()=>setViewIdx(0)}>▶ Mode présentation plein écran</button>
           </div>
         </>
       )}
