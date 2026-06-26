@@ -2330,7 +2330,7 @@ export default function App() {
             <span className="husr">{user.name}</span>
             <span className={`pill ${pillCls}`}>{user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
             {user.role!=="admin"&&user.role!=="pasteur"&&<button className="btn btn-g btn-sm" title="Changer mon code PIN" onClick={()=>setChangePinModal(true)}>🔐 PIN</button>}
-            <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");}}>Déconnexion</button>
+            <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");setTab_("accueil");setTabKey(0);}}>Déconnexion</button>
           </div>
         </header>
 
