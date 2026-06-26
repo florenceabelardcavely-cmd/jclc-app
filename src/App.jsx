@@ -1240,10 +1240,14 @@ input,select,textarea{font-family:inherit;}
 .toast{position:fixed;bottom:88px;right:16px;background:linear-gradient(135deg,#1A1830,#2D2B6B);color:#fff;padding:12px 18px;border-radius:14px;font-size:13px;font-weight:600;z-index:300;box-shadow:0 8px 32px rgba(79,70,229,.3),0 0 0 1px rgba(255,255,255,.1);animation:slideUp .25s cubic-bezier(.34,1.56,.64,1);backdrop-filter:blur(20px);}
 @keyframes slideUp{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tabFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.tab-content>*{animation:tabFade .2s ease forwards;}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skeleton{background:linear-gradient(90deg,var(--sur2) 25%,var(--bdr) 50%,var(--sur2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:8px;}
 .fade-in{animation:fadeIn .3s ease forwards;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tabFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.tab-content>*{animation:tabFade .2s ease forwards;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 .fade-in{animation:fadeIn .3s ease forwards;}
 .pill{padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px;box-shadow:0 1px 4px rgba(0,0,0,.08);}
@@ -2253,6 +2257,7 @@ export default function App() {
             </div>
           )}
 
+          <div className="tab-content">
           {tab==="accueil"       &&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
@@ -2269,6 +2274,7 @@ export default function App() {
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
           {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>}
+          </div>
         </main>
 
         <BottomNav tabs={tabs} tab={tab} setTab={setTab}/>
