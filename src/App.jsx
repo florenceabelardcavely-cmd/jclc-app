@@ -3255,10 +3255,10 @@ function ProgrammesTab({st,church,church2,M,deleteProg,archiveProg,duplicateProg
               let out=`${p.title||"Programme"}\n${"=".repeat(30)}\n\n`;
               songs.forEach((item,i)=>{
                 const song=st.songs.find(s=>s.id===item.songId)||{title:item.title,sections:[]};
-                out+=`${i+1}. ${song.title||item.title}\n${"-".repeat(30)}\n`;
+                out+=`${i+1}. ${(song.title||item.title).toUpperCase()}\n${"-".repeat(30)}\n`;
                 (song.sections||[]).forEach(sec=>{
-                  out+=`[${sec.label}]\n`;
-                  (sec.lines||[]).forEach(line=>{if(line.k==="lyric"&&line.t.trim())out+=line.t+"\n";});
+                  out+=`[${sec.label.toUpperCase()}]\n`;
+                  (sec.lines||[]).forEach(line=>{if(line.k==="lyric"&&line.t.trim())out+=line.t.toUpperCase()+"\n";});
                   out+="\n";
                 });
                 out+="\n";
@@ -4270,9 +4270,9 @@ function SongViewModal({song,onClose}){
     out+=song.title+"\n";
     out+="=".repeat(song.title.length)+"\n\n";
     (song.sections||[]).forEach(sec=>{
-      out+=`[${sec.label}]\n`;
+      out+=`[${sec.label.toUpperCase()}]\n`;
       (sec.lines||[]).forEach(line=>{
-        if(line.k==="lyric"&&line.t.trim())out+=line.t+"\n";
+        if(line.k==="lyric"&&line.t.trim())out+=line.t.toUpperCase()+"\n";
       });
       out+="\n";
     });
@@ -4746,7 +4746,7 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
 // ── PROGRAM VIEW MODAL ──
 function ProgramViewModal({program,songs,onClose}){
   const printRef=useRef();
-  function print(){const w=window.open("","_blank");w.document.write(`<html><head><title>${program.title}</title><style>body{font-family:monospace;font-size:13px;line-height:1.9;padding:32px;}.head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #eee;padding-bottom:14px;margin-bottom:20px;}.head img{width:52px;height:52px;object-fit:contain;}h1{font-size:18px;font-weight:700;margin:2px 0;font-family:serif;}h2{font-size:15px;font-weight:700;text-decoration:underline;margin:22px 0 4px;font-family:serif;}.s{font-style:italic;font-weight:700;margin:12px 0 2px;}.c{color:#CC1F00;font-weight:700;white-space:pre;}.l{white-space:pre;}.hr{border:none;border-top:1.5px solid #ddd;margin:18px 0;}.cat-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:10px;background:#EDE9FE;color:#5B21B6;margin-bottom:6px;}</style></head><body>${printRef.current.innerHTML}</body></html>`);w.document.close();w.print();}
+  function print(){const w=window.open("","_blank");w.document.write(`<html><head><title>${program.title}</title><style>body{font-family:monospace;font-size:18px;line-height:2;padding:32px;}.head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #eee;padding-bottom:14px;margin-bottom:20px;}.head img{width:52px;height:52px;object-fit:contain;}h1{font-size:24px;font-weight:700;margin:2px 0;font-family:serif;}h2{font-size:20px;font-weight:700;text-decoration:underline;margin:22px 0 4px;font-family:serif;}.s{font-style:italic;font-weight:700;margin:12px 0 2px;font-size:16px;}.c{color:#CC1F00;font-weight:700;white-space:pre;font-size:16px;}.l{white-space:pre;font-size:18px;}.hr{border:none;border-top:1.5px solid #ddd;margin:18px 0;}.cat-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;background:#EDE9FE;color:#5B21B6;margin-bottom:6px;}</style></head><body>${printRef.current.innerHTML}</body></html>`);w.document.close();w.print();}
   const pages=program.pages||1;
   const pageItems=pages===1?[program.items]:pages===2?[program.items.slice(0,Math.ceil(program.items.length/2)),program.items.slice(Math.ceil(program.items.length/2))]:[program.items.slice(0,Math.ceil(program.items.length/3)),program.items.slice(Math.ceil(program.items.length/3),Math.ceil(program.items.length*2/3)),program.items.slice(Math.ceil(program.items.length*2/3))];
   return(
