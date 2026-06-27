@@ -1134,7 +1134,8 @@ function semit(from,to){
   const a=FR_NOTES.indexOf(fr)!==-1?FR_NOTES.indexOf(fr):EN_NOTES.indexOf(fr);
   const b=FR_NOTES.indexOf(to2)!==-1?FR_NOTES.indexOf(to2):EN_NOTES.indexOf(to2);
   if(a===-1||b===-1)return 0;
-  return(b-a+12)%12;
+  const diff=(b-a+12)%12;
+  return diff>6?diff-12:diff;
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
 function dk(d){const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${d.getFullYear()}-${mm}-${dd}`;}
