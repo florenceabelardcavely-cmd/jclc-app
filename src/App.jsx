@@ -998,7 +998,7 @@ const SONGS0 = [
 // ══ ChordPro Engine ══
 const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
 const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si"};
+const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Rem":"Rém"};
 const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
 
 function noteToIdx(note){
