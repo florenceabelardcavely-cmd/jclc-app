@@ -2201,7 +2201,7 @@ export default function App() {
             {modal.t==="editMember" &&<MemberModal churchId={modal.cid} member={modal.m} onSave={m=>{editMember(modal.cid,m);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="assign"     &&<AssignModal cid={modal.cid} d={modal.d} date={modal.date} type={modal.type} members={st.members[modal.cid]} isAvail={isAvail} assigned={st.plans[modal.cid][modal.d]||[]} onSave={ids=>{assignDate(modal.cid,modal.d,ids);setModal(null);toast_("Assignation sauvegardée","📋");}} onClose={()=>setModal(null)}/>}
             {modal.t==="selectService"&&<SelectServiceModal cid={modal.cid} d={modal.d} date={modal.date} members={st.members[modal.cid]} assigned={st.plans[modal.cid][modal.d]||[]} selected={st.planService[modal.cid]?.[modal.d]||[]} leadId={st.planLead?.[modal.cid]?.[modal.d]||null} onSave={(ids,leadId)=>{setServiceMembers(modal.cid,modal.d,ids,leadId);setModal(null);toast_("Membres de service sélectionnés","✅");}} onClose={()=>setModal(null)}/>}
-            {modal.t==="viewSong"   &&<SongViewModal song={modal.s} onClose={()=>setModal(null)}/>}
+            {modal.t==="viewSong"   &&<SongViewModal song={modal.s} onSave={s=>{editSong(s);}} onClose={()=>setModal(null)}/>}
             {modal.t==="addSong"    &&<SongFormModal onSave={s=>{addSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="editSong"   &&<SongFormModal song={modal.s} onSave={s=>{editSong(s);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.t==="importSong" &&<ImportSongModal onSave={s=>{addSong(s);toast_("Chant importé !","📥");}} onSaveMany={songs=>{songs.forEach(s=>addSong(s));setModal(null);toast_(`${songs.length} chant(s) importé(s) !`,"📥");}} onClose={()=>setModal(null)}/>}
@@ -4256,7 +4256,35 @@ function playNote(noteName){
   }catch(e){}
 }
 
-function SongViewModal({song,onClose}){
+function ChordLineEditor({line,si,li,st_,notation,song,onSave}){
+  const [editing,setEditing]=React.useState(false);
+  const [val,setVal]=React.useState(line.t);
+  if(!editing) return(
+    <div className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre",cursor:onSave?"pointer":undefined,position:"relative"}}
+      title={onSave?"Cliquer pour modifier l'accord":undefined}
+      onClick={()=>{if(onSave){setVal(line.t);setEditing(true);}}}>
+      {transposeLine(line.t,st_,notation==="en"?"en":undefined)}
+      {onSave&&<span style={{fontSize:9,color:"rgba(204,31,0,.4)",marginLeft:4}}>✏️</span>}
+    </div>
+  );
+  function save(){
+    const newSections=song.sections.map((sec,sii)=>sii!==si?sec:{...sec,lines:sec.lines.map((l,lii)=>lii!==li?l:{...l,t:val})});
+    onSave({...song,sections:newSections});
+    setEditing(false);
+  }
+  return(
+    <div style={{display:"flex",gap:4,alignItems:"center",marginBottom:2}}>
+      <input value={val} onChange={e=>setVal(e.target.value)}
+        style={{fontFamily:"monospace",fontWeight:700,fontSize:13,color:"#CC1F00",background:"rgba(204,31,0,.08)",border:"1px solid #CC1F00",borderRadius:4,padding:"2px 6px",flex:1}}
+        onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")setEditing(false);}}
+        autoFocus/>
+      <button className="btn btn-p btn-xs" onClick={save}>✓</button>
+      <button className="btn btn-g btn-xs" onClick={()=>setEditing(false)}>✕</button>
+    </div>
+  );
+}
+
+function SongViewModal({song,onSave,onClose}){
   const [curKey,setCurKey]=useState(song.key||"Do");
   const [notation,setNotation]=useState("fr");
   const [presentMode,setPresentMode]=useState(false);
@@ -4353,7 +4381,7 @@ function SongViewModal({song,onClose}){
             <div className="cs-s">{sec.label}</div>
             {(sec.lines||[]).map((line,li)=>(
               line.k==="chord"
-                ?<div key={li} className="cs-c" style={{fontFamily:"monospace",fontWeight:700,whiteSpace:"pre"}}>{transposeLine(line.t,st_,notation==="en"?"en":undefined)}</div>
+                ?<ChordLineEditor key={li} line={line} si={si} li={li} st_={st_} notation={notation} song={song} onSave={onSave}/>
                 :<div key={li} className="cs-l" style={{whiteSpace:"pre"}}>{line.t}</div>
             ))}
           </div>
