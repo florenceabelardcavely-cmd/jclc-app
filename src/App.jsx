@@ -3259,7 +3259,10 @@ function ProgrammesTab({st,church,church2,M,deleteProg,archiveProg,duplicateProg
                 out+=`${i+1}. ${(song.title||item.title).toUpperCase()}\n${"-".repeat(30)}\n`;
                 (song.sections||[]).forEach(sec=>{
                   out+=`[${sec.label.toUpperCase()}]\n`;
-                  (sec.lines||[]).forEach(line=>{if(line.k==="lyric"&&line.t.trim())out+=line.t.toUpperCase()+"\n";});
+                  (sec.lines||[]).forEach(line=>{if(line.k==="lyric"&&line.t.trim()){
+          const fr={"à":"À","â":"Â","ä":"Ä","é":"É","è":"È","ê":"Ê","ë":"Ë","î":"Î","ï":"Ï","ô":"Ô","ö":"Ö","ù":"Ù","û":"Û","ü":"Ü","ç":"Ç","œ":"Œ","æ":"Æ"};
+          out+=line.t.replace(/[àâäéèêëîïôöùûüçœæ]/gi,c=>fr[c]||c).toUpperCase()+"\n";
+        }});
                   out+="\n";
                 });
                 out+="\n";
@@ -4438,7 +4441,10 @@ function SongViewModal({song,onSave,onClose}){
     (song.sections||[]).forEach(sec=>{
       out+=`[${sec.label.toUpperCase()}]\n`;
       (sec.lines||[]).forEach(line=>{
-        if(line.k==="lyric"&&line.t.trim())out+=line.t.toUpperCase()+"\n";
+        if(line.k==="lyric"&&line.t.trim()){
+          const fr={"à":"À","â":"Â","ä":"Ä","é":"É","è":"È","ê":"Ê","ë":"Ë","î":"Î","ï":"Ï","ô":"Ô","ö":"Ö","ù":"Ù","û":"Û","ü":"Ü","ç":"Ç","œ":"Œ","æ":"Æ"};
+          out+=line.t.replace(/[àâäéèêëîïôöùûüçœæ]/gi,c=>fr[c]||c).toUpperCase()+"\n";
+        }
       });
       out+="\n";
     });
