@@ -998,10 +998,11 @@ const SONGS0 = [
 // ══ ChordPro Engine ══
 const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
 const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Rem":"Rém"};
+const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Rem":"Rém","rem":"Rém","rém":"Rém","REM":"Rém","RÉM":"Rém"};
 const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
 
 function noteToIdx(note){
+  note=note.replace(/^[Rr][eé][Mm]$/,"Rém").replace(/^[Rr][eé]$/,"Ré");
   let n=note.replace(/m$|7$|maj7$|sus[24]?$|add[0-9]+$|dim$|aug$/g,"");
   let i=FR_NOTES.indexOf(n);
   if(i>=0)return{idx:i,lang:"fr"};
@@ -1013,7 +1014,7 @@ function noteToIdx(note){
 }
 
 function transposeChord(chord,st,targetLang){
-  const frPat=/^(Do#?|Réb?#?|Mib?|Fa#?|Solb?#?|Lab?#?|Sib?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
+  const frPat=/^(Do#?|Ré?b?#?|Re#?|Mib?|Fa#?|Solb?#?|Lab?#?|Sib?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
   const enPat=/^([A-G][b#]?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
   let root="",suffix="",lang="fr",rest="";
   let mm=chord.match(frPat);
@@ -1037,13 +1038,14 @@ function transposeChord(chord,st,targetLang){
 
 function transposeLine(line,st,lang){
   if(st===0&&!lang)return line;
-  const normalized=line.replace(/\b(DO|RE|RÉ|MI|FA|SOL|LA|SI)(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?\b/g,m=>{
+  const pre=line.replace(/\b([Rr][eé][Mm]|[Rr]em|[Rr]ém)\b/g,"Rém").replace(/\b([Rr][eé])\b/g,"Ré");
+  const normalized=pre.replace(/\b(DO|RE|RÉ|MI|FA|SOL|LA|SI)(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?\b/g,m=>{
     const map={"DO":"Do","RE":"Ré","RÉ":"Ré","MI":"Mi","FA":"Fa","SOL":"Sol","LA":"La","SI":"Si"};
     const base=m.replace(/(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?$/i,"").toUpperCase();
     const suffix=m.slice(base.length).toLowerCase();
     return (map[base]||m)+suffix;
   });
-  return normalized.replace(/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
+  return normalized.replace(/[A-Za-zÀ-ÿ̀-ͯ][A-Za-z0-9#b̀-ͯ]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
     const r=noteToIdx(c.split("/")[0]);
     return r?transposeChord(c,st,lang):c;
   });
