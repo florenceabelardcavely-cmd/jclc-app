@@ -1138,10 +1138,11 @@ function toChordPro(song){
 }
 
 function semit(from,to){
-  const fr=(from||"").replace(/m$/,"");
-  const to2=(to||"").replace(/m$/,"");
-  const a=FR_NOTES.indexOf(fr)!==-1?FR_NOTES.indexOf(fr):EN_NOTES.indexOf(fr);
-  const b=FR_NOTES.indexOf(to2)!==-1?FR_NOTES.indexOf(to2):EN_NOTES.indexOf(to2);
+  const normalize=n=>(n||"").replace(/m$/,"").replace(/^Re(?=#|b|$|m)/,"Ré").replace(/^Re$/,"Ré");
+  const fr=normalize(from);
+  const to2=normalize(to);
+  const a=FR_NOTES.indexOf(fr)!==-1?FR_NOTES.indexOf(fr):(FR_ALT[fr]?FR_NOTES.indexOf(FR_ALT[fr]):EN_NOTES.indexOf(fr));
+  const b=FR_NOTES.indexOf(to2)!==-1?FR_NOTES.indexOf(to2):(FR_ALT[to2]?FR_NOTES.indexOf(FR_ALT[to2]):EN_NOTES.indexOf(to2));
   if(a===-1||b===-1)return 0;
   const diff=(b-a+12)%12;
   return diff>6?diff-12:diff;
