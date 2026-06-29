@@ -2180,8 +2180,8 @@ export default function App() {
   const tabs = isAdmin
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}]
-    : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),{id:"repetition",l:"Répétition",i:"🎼"},...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}]
+    : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
 
@@ -2685,8 +2685,7 @@ function MusicienTab({user,st,church}){
   const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
   const NOTES_EN=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
   const CUR_NOTES=notation==="fr"?NOTES_FR:NOTES_EN;
-  const normKey=k=>(k||"Do").replace(/m$/,"").replace(/^Re$/,"Ré").replace(/^Re(?=#|b)/,"Ré");
-  function getKey(sid,orig){return songKeys[sid]||normKey(orig)||"Do";}
+  function getKey(sid,orig){const k=songKeys[sid]||(orig||"Do");return k.replace(/^Re(?=#|b|$)/,"Ré");}
   function changeKey(sid,orig,delta){
     const cur=getKey(sid,orig);
     const ci=CUR_NOTES.indexOf(cur)!==-1?CUR_NOTES.indexOf(cur):NOTES_FR.indexOf(cur);
@@ -3657,7 +3656,7 @@ function RepetitionTab({st,church,isAdmin,user}){
     <div>
       <div className="ph">
         <div><div className="pt">🎼 Répétitions</div><div className="ps">{ch.fullName}</div></div>
-        <button className="btn btn-p btn-sm" onClick={()=>setShowNew(true)}>+ Nouvelle liste</button>
+        {(isAdmin||user?.canEditProg)&&<button className="btn btn-p btn-sm" onClick={()=>setShowNew(true)}>+ Nouvelle liste</button>}
       </div>
       {showNew&&(
         <div className="card" style={{margin:"0 16px 16px"}}>
