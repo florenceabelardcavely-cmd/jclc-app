@@ -1206,10 +1206,10 @@ input,select,textarea{font-family:inherit;}
 .hbrand-s{font-size:10px;color:var(--txt3);letter-spacing:.5px;text-transform:uppercase;}
 .hrgt{display:flex;align-items:center;gap:10px;}
 .husr{font-size:12px;font-weight:600;color:var(--txt2);}
-.nav{background:rgba(255,255,255,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--bdr);padding:0 28px;display:flex;gap:2px;overflow-x:auto;}
-.nbtn{padding:12px 14px;font-size:12px;font-weight:600;color:var(--txt2);background:none;border:none;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;}
-.nbtn:hover{color:var(--gold);background:var(--gold-bg);}
-.nbtn.on{color:var(--ind);border-bottom-color:var(--ind);font-weight:700;}
+.nav{background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:2px solid var(--bdr);padding:0 20px;display:flex;gap:4px;overflow-x:auto;box-shadow:0 2px 12px rgba(79,70,229,.07);}
+.nbtn{padding:14px 18px;font-size:13px;font-weight:700;color:var(--txt2);background:none;border:none;border-bottom:3px solid transparent;white-space:nowrap;transition:all .18s;border-radius:10px 10px 0 0;letter-spacing:.2px;}
+.nbtn:hover{color:var(--ind);background:rgba(79,70,229,.07);}
+.nbtn.on{color:var(--ind);border-bottom-color:var(--ind);font-weight:800;background:rgba(79,70,229,.08);}
 .card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px;transition:box-shadow .2s,transform .2s;}
 .card:hover{box-shadow:var(--shm);}
 .card-t{font-weight:700;font-size:15px;margin-bottom:2px;}
@@ -1391,12 +1391,12 @@ input,select,textarea{font-family:inherit;}
   .hrgt .pill{display:none;}
   .nav{display:none;}
   .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(79,70,229,.08);z-index:100;box-shadow:0 -4px 24px rgba(79,70,229,.08);padding-bottom:env(safe-area-inset-bottom);}
-  .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 4px 8px;border:none;background:none;font-size:10px;font-weight:600;color:var(--txt3);gap:4px;cursor:pointer;transition:all .2s;min-width:0;position:relative;}
+  .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 2px 8px;border:none;background:none;font-size:10px;font-weight:600;color:var(--txt3);gap:3px;cursor:pointer;transition:all .2s;min-width:0;position:relative;}
   .bnav-btn.on{color:var(--ind);}
   .bnav-btn.on .bni{transform:translateY(-2px);filter:drop-shadow(0 2px 6px rgba(79,70,229,.3));}
-  .bnav-btn.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:20px;height:3px;background:linear-gradient(135deg,#4F46E5,#6366F1);border-radius:3px 3px 0 0;}
-  .bnav-btn .bni{font-size:22px;line-height:1;transition:all .2s;}
-  .bnav-btn .bnl{font-size:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:56px;font-weight:700;letter-spacing:.2px;}
+  .bnav-btn.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:28px;height:3px;background:linear-gradient(135deg,#4F46E5,#6366F1);border-radius:3px 3px 0 0;}
+  .bnav-btn .bni{font-size:26px;line-height:1;transition:all .2s;}
+  .bnav-btn .bnl{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;font-weight:700;letter-spacing:.2px;}
   .card{padding:16px;border-radius:14px;}
   .g2{grid-template-columns:1fr;}
   .stats{grid-template-columns:1fr 1fr;}
@@ -3871,7 +3871,7 @@ function PasteursTab({st,user}){
   }
 
   const activeList=selIdx!==null?lists[selIdx]:null;
-  const filtered=st.songs.filter(s=>s.title&&s.title.toLowerCase().includes(songSearch.toLowerCase())).slice(0,8);
+  const filtered=[...st.songs].filter(s=>s.title&&s.title.toLowerCase().includes(songSearch.toLowerCase())).sort((a,b)=>a.title.localeCompare(b.title,'fr',{sensitivity:'base'})).slice(0,songSearch.trim()?20:8);
 
   if(!loaded)return<div className="card"><div className="empty">Chargement...</div></div>;
 
@@ -3903,7 +3903,7 @@ function PasteursTab({st,user}){
               <button className="btn btn-d btn-xs" onClick={()=>deleteList(selIdx)}>🗑 Supprimer</button>
             </div>
             <div style={{marginBottom:12}}>
-              <input className="inp" placeholder="🔍 Ajouter un chant..." value={songSearch} onChange={e=>setSongSearch(e.target.value)}/>
+              <input className="inp" placeholder="🔍 Rechercher un chant par titre..." value={songSearch} onChange={e=>setSongSearch(e.target.value)} style={{width:"100%"}}/>
               {songSearch&&(
                 <div style={{background:"var(--sur2)",borderRadius:8,marginTop:4,maxHeight:200,overflowY:"auto"}}>
                   {filtered.length===0?<div style={{padding:12,color:"var(--txt2)",fontSize:13}}>Aucun chant trouvé</div>
@@ -4918,7 +4918,8 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
 // ── PROGRAM VIEW MODAL ──
 function ProgramViewModal({program,songs,onClose}){
   const printRef=useRef();
-  function print(){const w=window.open("","_blank");w.document.write(`<html><head><title>${program.title}</title><style>body{font-family:monospace;font-size:18px;line-height:2;padding:32px;}.head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #eee;padding-bottom:14px;margin-bottom:20px;}.head img{width:52px;height:52px;object-fit:contain;}h1{font-size:24px;font-weight:700;margin:2px 0;font-family:serif;}h2{font-size:20px;font-weight:700;text-decoration:underline;margin:22px 0 4px;font-family:serif;}.s{font-style:italic;font-weight:700;margin:12px 0 2px;font-size:16px;}.c{color:#CC1F00;font-weight:700;white-space:pre;font-size:16px;}.l{white-space:pre;font-size:18px;}.hr{border:none;border-top:1.5px solid #ddd;margin:18px 0;}.cat-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;background:#EDE9FE;color:#5B21B6;margin-bottom:6px;}</style></head><body>${printRef.current.innerHTML}</body></html>`);w.document.close();w.print();}
+  function print(){const w=window.open("","_blank");w.document.write(`<html><head><title>${program.title}</title><style>body{font-family:monospace;font-size:18px;line-height:2;padding:32px;}.head{display:flex;align-items:center;gap:14px;border-bottom:2px solid #eee;padding-bottom:14px;margin-bottom:20px;}.head img{width:52px;height:52px;object-fit:contain;}h1{font-size:24px;font-weight:700;margin:2px 0;font-family:serif;}h2{font-size:20px;font-weight:700;text-decoration:underline;margin:22px 0 4px;font-family:serif;}.s{font-style:italic;font-weight:700;margin:12px 0 2px;font-size:16px;}.c{color:#CC1F00!important;font-weight:700;white-space:pre;font-size:16px;}.cs-c{color:#CC1F00!important;font-weight:700;white-space:pre;font-size:16px;}.l{white-space:pre;font-size:18px;}.hr{border:none;border-top:1.5px solid #ddd;margin:18px 0;}.cat-badge{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;background:#EDE9FE;color:#5B21B6;margin-bottom:6px;}</style></head><body>${printRef.current.innerHTML}</body></html>`);w.document.close();w.print();}
+  function printChantres(){const w=window.open("","_blank");const lyrics=program.items.map(item=>{const s=songs.find(x=>x.id===item.songId);if(!s)return "";const key=item.key||s.key;return `<div style="margin-bottom:28px"><div style="font-family:serif;font-size:16px;font-weight:700;text-decoration:underline;margin-bottom:8px">${s.title} <span style="font-size:12px;font-weight:400;font-style:italic">(${key})</span></div>${(s.sections||[]).map(sec=>`<div style="margin-bottom:10px"><div style="font-style:italic;font-weight:700;font-size:13px;margin-bottom:4px">${sec.label}</div>${(sec.lines||[]).filter(l=>l.k==="lyric"&&l.t.trim()).map(l=>`<div style="font-size:15px;line-height:1.8">${l.t}</div>`).join("")}</div>`).join("")}</div>`;}).join('<hr style="border:none;border-top:1px solid #ddd;margin:18px 0"/>');w.document.write(`<html><head><title>${program.title} — Chantres</title><style>body{font-family:sans-serif;font-size:14px;line-height:1.8;padding:32px;max-width:800px;margin:0 auto;}@media print{body{padding:16px;}}</style></head><body><div style="display:flex;align-items:center;gap:14px;border-bottom:2px solid #eee;padding-bottom:14px;margin-bottom:20px"><div><div style="font-size:10px;color:#B45309;font-weight:700;letter-spacing:2px;text-transform:uppercase">Jésus-Christ Le Chemin</div><div style="font-family:serif;font-size:18px;font-weight:700">${program.title} — Version Chantres</div><div style="font-size:12px;color:#666">${program.date?new Date(program.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):""}</div></div></div>${lyrics}</body></html>`);w.document.close();w.print();}
   const pages=program.pages||1;
   const pageItems=pages===1?[program.items]:pages===2?[program.items.slice(0,Math.ceil(program.items.length/2)),program.items.slice(Math.ceil(program.items.length/2))]:[program.items.slice(0,Math.ceil(program.items.length/3)),program.items.slice(Math.ceil(program.items.length/3),Math.ceil(program.items.length*2/3)),program.items.slice(Math.ceil(program.items.length*2/3))];
   return(
@@ -4926,6 +4927,7 @@ function ProgramViewModal({program,songs,onClose}){
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
         <div style={{flex:1}}><div className="modal-t">{program.title}</div><div className="modal-s">{program.date&&new Date(program.date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} · {program.items.length} chant(s) · {pages} page(s)</div></div>
         <button className="btn btn-p btn-sm no-print" onClick={print}>🖨️ Imprimer</button>
+        <button className="btn btn-g btn-sm no-print" onClick={printChantres}>🎤 Chantres</button>
         <button className="btn btn-g btn-sm no-print" onClick={onClose}>✕</button>
       </div>
       <div ref={printRef}>
