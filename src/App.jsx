@@ -1206,10 +1206,10 @@ input,select,textarea{font-family:inherit;}
 .hbrand-s{font-size:10px;color:var(--txt3);letter-spacing:.5px;text-transform:uppercase;}
 .hrgt{display:flex;align-items:center;gap:10px;}
 .husr{font-size:12px;font-weight:600;color:var(--txt2);}
-.nav{background:rgba(255,255,255,.97);backdrop-filter:blur(12px);border-bottom:2px solid var(--bdr);padding:0 20px;display:flex;gap:4px;overflow-x:auto;box-shadow:0 2px 12px rgba(79,70,229,.07);}
-.nbtn{padding:14px 18px;font-size:13px;font-weight:700;color:var(--txt2);background:none;border:none;border-bottom:3px solid transparent;white-space:nowrap;transition:all .18s;border-radius:10px 10px 0 0;letter-spacing:.2px;}
-.nbtn:hover{color:var(--ind);background:rgba(79,70,229,.07);}
-.nbtn.on{color:var(--ind);border-bottom-color:var(--ind);font-weight:800;background:rgba(79,70,229,.08);}
+.nav{background:linear-gradient(135deg,#4F46E5 0%,#6366F1 100%);padding:0 16px;display:flex;gap:3px;overflow-x:auto;box-shadow:0 4px 16px rgba(79,70,229,.35);}
+.nbtn{padding:12px 16px;font-size:12px;font-weight:700;color:rgba(255,255,255,.75);background:rgba(255,255,255,.08);border:none;border-radius:10px;white-space:nowrap;transition:all .18s;letter-spacing:.2px;margin:6px 2px;}
+.nbtn:hover{color:#fff;background:rgba(255,255,255,.18);}
+.nbtn.on{color:#4F46E5;background:#fff;font-weight:800;box-shadow:0 2px 8px rgba(0,0,0,.15);}
 .card{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);padding:20px;box-shadow:var(--sh);margin-bottom:16px;transition:box-shadow .2s,transform .2s;}
 .card:hover{box-shadow:var(--shm);}
 .card-t{font-weight:700;font-size:15px;margin-bottom:2px;}
@@ -1390,13 +1390,13 @@ input,select,textarea{font-family:inherit;}
   .husr{display:none;}
   .hrgt .pill{display:none;}
   .nav{display:none;}
-  .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-top:1px solid rgba(79,70,229,.08);z-index:100;box-shadow:0 -4px 24px rgba(79,70,229,.08);padding-bottom:env(safe-area-inset-bottom);}
-  .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 2px 8px;border:none;background:none;font-size:10px;font-weight:600;color:var(--txt3);gap:3px;cursor:pointer;transition:all .2s;min-width:0;position:relative;}
-  .bnav-btn.on{color:var(--ind);}
-  .bnav-btn.on .bni{transform:translateY(-2px);filter:drop-shadow(0 2px 6px rgba(79,70,229,.3));}
-  .bnav-btn.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:28px;height:3px;background:linear-gradient(135deg,#4F46E5,#6366F1);border-radius:3px 3px 0 0;}
+  .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;background:linear-gradient(135deg,#4F46E5 0%,#6366F1 100%);border-top:none;z-index:100;box-shadow:0 -4px 24px rgba(79,70,229,.4);padding-bottom:env(safe-area-inset-bottom);}
+  .bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:10px 2px 8px;border:none;background:none;font-size:10px;font-weight:600;color:rgba(255,255,255,.65);gap:3px;cursor:pointer;transition:all .2s;min-width:0;position:relative;}
+  .bnav-btn.on{color:#fff;}
+  .bnav-btn.on .bni{transform:translateY(-2px);filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));}
+  .bnav-btn.on::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:28px;height:3px;background:#fff;border-radius:3px 3px 0 0;}
   .bnav-btn .bni{font-size:26px;line-height:1;transition:all .2s;}
-  .bnav-btn .bnl{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;font-weight:700;letter-spacing:.2px;}
+  .bnav-btn .bnl{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60px;font-weight:700;letter-spacing:.2px;color:inherit;}
   .card{padding:16px;border-radius:14px;}
   .g2{grid-template-columns:1fr;}
   .stats{grid-template-columns:1fr 1fr;}
@@ -4829,12 +4829,20 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
   const [items,setItems]=useState(program?.items||[]);
   const [addId,setAddId]=useState("");
   const [addCat,setAddCat]=useState("");
+  const [songSearch,setSongSearch]=useState("");
+  const [showResults,setShowResults]=useState(false);
+
+  const songsSorted=[...songs].sort((a,b)=>a.title.localeCompare(b.title,'fr',{sensitivity:'base'}));
+  const filteredSongs=songsSorted.filter(s=>s.title&&s.title.toLowerCase().includes(songSearch.toLowerCase())).slice(0,15);
 
   const addItem=()=>{
     if(!addId)return;
     const s=songs.find(x=>x.id===addId);if(!s)return;
     setItems(it=>[...it,{songId:addId,key:s.key,categorie:addCat||s.categorie||"",notesProg:""}]);
-    setAddId("");setAddCat("");
+    setAddId("");setAddCat("");setSongSearch("");setShowResults(false);
+  };
+  const selectSong=(s)=>{
+    setAddId(s.id);setSongSearch(s.title);setShowResults(false);
   };
   const remItem=i=>setItems(it=>it.filter((_,j)=>j!==i));
   const updItem=(i,k,v)=>setItems(it=>it.map((x,j)=>j===i?{...x,[k]:v}:x));
@@ -4893,16 +4901,40 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
         ):null;})}
       </div>
 
-      <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-        <select className="sel" style={{flex:1}} value={addId} onChange={e=>setAddId(e.target.value)}>
-          <option value="">— Choisir un chant —</option>
-          {songs.map(s=><option key={s.id} value={s.id}>{s.title} ({s.key})</option>)}
-        </select>
-        <select className="sel" style={{width:160}} value={addCat} onChange={e=>setAddCat(e.target.value)}>
-          <option value="">Catégorie</option>
-          {CATEGORIES_CHANT.map(c=><option key={c} value={c}>{c}</option>)}
-        </select>
-        <button className="btn btn-p btn-sm" onClick={addItem} disabled={!addId}>+ Ajouter</button>
+      <div style={{marginTop:10}}>
+        <div style={{position:"relative",marginBottom:8}}>
+          <input className="inp" style={{width:"100%"}} placeholder="🔍 Rechercher un chant par titre..." value={songSearch}
+            onChange={e=>{setSongSearch(e.target.value);setShowResults(true);setAddId("");}}
+            onFocus={()=>setShowResults(true)}
+            onBlur={()=>setTimeout(()=>setShowResults(false),200)}
+          />
+          {showResults&&songSearch&&(
+            <div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--sur)",border:"1px solid var(--bdr)",borderRadius:10,zIndex:50,maxHeight:220,overflowY:"auto",boxShadow:"0 8px 24px rgba(0,0,0,.12)"}}>
+              {filteredSongs.length===0
+                ?<div style={{padding:12,color:"var(--txt2)",fontSize:13,textAlign:"center"}}>Aucun chant trouvé</div>
+                :filteredSongs.map(s=>(
+                  <div key={s.id} onMouseDown={()=>selectSong(s)}
+                    style={{padding:"10px 14px",cursor:"pointer",borderBottom:"1px solid var(--bdr)",display:"flex",justifyContent:"space-between",alignItems:"center",transition:"background .1s"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="var(--sur2)"}
+                    onMouseLeave={e=>e.currentTarget.style.background=""}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600}}>{s.title}</div>
+                      {s.categorie&&<div style={{fontSize:11,color:"var(--txt2)"}}>{s.categorie}</div>}
+                    </div>
+                    <span style={{fontSize:11,color:"var(--txt3)",background:"var(--sur2)",padding:"2px 8px",borderRadius:20}}>{s.key}</span>
+                  </div>
+                ))
+              }
+            </div>
+          )}
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <select className="sel" style={{flex:1}} value={addCat} onChange={e=>setAddCat(e.target.value)}>
+            <option value="">Catégorie</option>
+            {CATEGORIES_CHANT.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+          <button className="btn btn-p btn-sm" onClick={addItem} disabled={!addId}>+ Ajouter</button>
+        </div>
       </div>
 
       <div className="flex-end">
