@@ -2682,7 +2682,8 @@ function MusicienTab({user,st,church}){
   const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
   const NOTES_EN=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
   const CUR_NOTES=notation==="fr"?NOTES_FR:NOTES_EN;
-  function getKey(sid,orig){return songKeys[sid]||orig||"Do";}
+  const normKey=k=>(k||"Do").replace(/m$/,"").replace(/^Re$/,"Ré").replace(/^Re(?=#|b)/,"Ré");
+  function getKey(sid,orig){return songKeys[sid]||normKey(orig)||"Do";}
   function changeKey(sid,orig,delta){
     const cur=getKey(sid,orig);
     const ci=CUR_NOTES.indexOf(cur)!==-1?CUR_NOTES.indexOf(cur):NOTES_FR.indexOf(cur);
@@ -2834,7 +2835,8 @@ function MusicienTab({user,st,church}){
             const origKey=item.key||songData.key||"Do";
             const dispKey=getKey(sid,origKey);
             const st_=semit(origKey,dispKey);
-            const semitones=((NOTES_FR.indexOf(dispKey)-NOTES_FR.indexOf(origKey))+12)%12;
+            const normOrig=origKey.replace(/m$/,"").replace(/^Re$/,"Ré");
+            const semitones=((NOTES_FR.indexOf(dispKey)-NOTES_FR.indexOf(normOrig))+12)%12;
             const hasSections=songData.sections&&songData.sections.length>0;
             return(
               <div key={sid} className="card" style={{margin:"0 16px 12px",borderLeft:`4px solid ${ch.color}`}}>
