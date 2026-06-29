@@ -998,12 +998,15 @@ const SONGS0 = [
 // ══ ChordPro Engine ══
 const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
 const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Rem":"Rém","rem":"Rém","rém":"Rém","REM":"Rém","RÉM":"Rém"};
+const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Reb":"Do#"};
 const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
 
 function noteToIdx(note){
-  note=note.replace(/^[Rr][eé][Mm]$/,"Rém").replace(/^[Rr][eé]$/,"Ré");
+  // Normaliser Re->Ré avant tout traitement
+  note=note.replace(/^Re(?=#|b|$)/,"Ré").replace(/^re(?=#|b|$)/,"Ré");
   let n=note.replace(/m$|7$|maj7$|sus[24]?$|add[0-9]+$|dim$|aug$/g,"");
+  // Normaliser la racine Re->Ré après suppression suffixe
+  n=n.replace(/^Re$/,"Ré").replace(/^re$/,"Ré");
   let i=FR_NOTES.indexOf(n);
   if(i>=0)return{idx:i,lang:"fr"};
   if(FR_ALT[n]){i=FR_NOTES.indexOf(FR_ALT[n]);if(i>=0)return{idx:i,lang:"fr"};}
@@ -1014,7 +1017,7 @@ function noteToIdx(note){
 }
 
 function transposeChord(chord,st,targetLang){
-  const frPat=/^(Do#?|Ré?b?#?|Re#?|Mib?|Fa#?|Solb?#?|Lab?#?|Sib?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
+  const frPat=/^(Do#?|Ré[b#]?|Re[b#]?|Mib?|Fa#?|Solb?#?|Lab?#?|Sib?|Dom?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
   const enPat=/^([A-G][b#]?)(m(?:aj)?7?|7|sus[24]?|add[0-9]+|dim|aug|m)?/;
   let root="",suffix="",lang="fr",rest="";
   let mm=chord.match(frPat);
@@ -1038,7 +1041,7 @@ function transposeChord(chord,st,targetLang){
 
 function transposeLine(line,st,lang){
   if(st===0&&!lang)return line;
-  const pre=line.replace(/\b([Rr][eé][Mm]|[Rr]em|[Rr]ém)\b/g,"Rém").replace(/\b([Rr][eé])\b/g,"Ré");
+  const pre=line.replace(/\bRe(?=[mb#\s]|$)/g,"Ré").replace(/\bre(?=[mb#\s]|$)/g,"Ré");
   const normalized=pre.replace(/\b(DO|RE|RÉ|MI|FA|SOL|LA|SI)(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?\b/g,m=>{
     const map={"DO":"Do","RE":"Ré","RÉ":"Ré","MI":"Mi","FA":"Fa","SOL":"Sol","LA":"La","SI":"Si"};
     const base=m.replace(/(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?$/i,"").toUpperCase();
