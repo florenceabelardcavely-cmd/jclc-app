@@ -997,6 +997,7 @@ const SONGS0 = [
 // ══ Utilitaires ══
 // ══ ChordPro Engine ══
 const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+const FR_MINOR={"Lam":"La","Rém":"Ré","Rem":"Ré","Mim":"Mi","Fam":"Fa","Fa#m":"Fa#","Solm":"Sol","Dom":"Do","Sim":"Si","Do#m":"Do#"};
 const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Reb":"Do#"};
 const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
@@ -1004,6 +1005,8 @@ const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
 function noteToIdx(note){
   // Normaliser Re->Ré avant tout traitement
   note=note.replace(/^Re(?=#|b|$)/,"Ré").replace(/^re(?=#|b|$)/,"Ré");
+  // Vérifier FR_MINOR pour les accords mineurs
+  if(FR_MINOR[note]){const idx=FR_NOTES.indexOf(FR_MINOR[note]);if(idx>=0)return{idx,lang:"fr"};}
   let n=note.replace(/m$|7$|maj7$|sus[24]?$|add[0-9]+$|dim$|aug$/g,"");
   // Normaliser la racine Re->Ré après suppression suffixe
   n=n.replace(/^Re$/,"Ré").replace(/^re$/,"Ré");
@@ -1052,7 +1055,7 @@ function transposeLine(line,st,lang){
     const suffix=m.slice(base.length).toLowerCase();
     return (map[base]||m)+suffix;
   });
-  return normalized.replace(/[A-Za-zÀ-ÿ̀-ͯ][A-Za-z0-9#b̀-ͯ]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#b]*)*/g,c=>{
+  return normalized.replace(/[A-Za-zÀ-ÿ][A-Za-z0-9#bÀ-ɏ]*(?:\/[A-Za-zÀ-ÿ][A-Za-z0-9#bÀ-ɏ]*)*/g,c=>{
     const r=noteToIdx(c.split("/")[0]);
     return r?transposeChord(c,st,lang):c;
   });
