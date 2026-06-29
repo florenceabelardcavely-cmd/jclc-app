@@ -4841,6 +4841,7 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
   const [notes,setNotes]=useState(program?.notes||"");
   const [pages,setPages]=useState(program?.pages||1);
   const [items,setItems]=useState(program?.items||[]);
+  const [progChurch,setProgChurch]=useState(program?.churchId||program?.church||churchId||"creil");
   const [addId,setAddId]=useState("");
   const [addCat,setAddCat]=useState("");
   const [songSearch,setSongSearch]=useState("");
@@ -4874,6 +4875,7 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
         <div className="fld"><label>Titre *</label><input className="inp" placeholder="Ex : Culte du dimanche" value={title} onChange={e=>setTitle(e.target.value)}/></div>
         <div className="fld"><label>Date</label><input className="inp" type="date" value={date} onChange={e=>setDate(e.target.value)}/></div>
       </div>
+      <div className="fld" style={{marginBottom:12}}><label>Assemblée</label><select className="sel" value={progChurch} onChange={e=>setProgChurch(e.target.value)}><option value="creil">Église de Creil</option><option value="lognes">Église de Lognes</option></select></div>
       <div className="g2">
         <div className="fld"><label>Nombre de pages (max 3)</label>
           <select className="sel" value={pages} onChange={e=>setPages(Number(e.target.value))}>
@@ -4953,7 +4955,7 @@ function ProgramFormModal({songs,program,onSave,onClose,churchId}){
 
       <div className="flex-end">
         <button className="btn btn-g" onClick={onClose}>Annuler</button>
-        <button className="btn btn-p" disabled={!title||items.length<minChants} onClick={()=>onSave({id:program?.id,title,date,notes,pages,items,churchId})}>
+        <button className="btn btn-p" disabled={!title||items.length<minChants} onClick={()=>onSave({id:program?.id,title,date,notes,pages,items,churchId:progChurch})}>
           {program?"Sauvegarder →":"Créer →"}
         </button>
       </div>
