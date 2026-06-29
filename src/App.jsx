@@ -1024,6 +1024,10 @@ function transposeChord(chord,st,targetLang){
   if(mm&&mm[1]){root=mm[1];suffix=mm[2]||"";rest=chord.slice(mm[0].length);lang="fr";}
   else{mm=chord.match(enPat);if(mm&&mm[1]){root=mm[1];suffix=mm[2]||"";rest=chord.slice(mm[0].length);lang="en";}}
   if(!root)return chord;
+  // Normaliser Re->Ré sur la racine extraite
+  if(root==="Re")root="Ré";
+  if(root==="Re#")root="Ré#";
+  if(root==="Reb")root="Do#";
   let bass="";
   if(rest.startsWith("/")){
     const bm=rest.slice(1).match(frPat)||rest.slice(1).match(enPat);
