@@ -2180,7 +2180,7 @@ export default function App() {
   const tabs = isAdmin
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}]
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"},...(user.role==="Pianiste"?[{id:"piano",l:"Piano",i:"🎹"}]:[])]
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
@@ -2291,6 +2291,7 @@ export default function App() {
           {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
+          {tab==="piano"          &&<PianoTab user={user}/>}
           {tab==="repetition"    &&<RepetitionTab st={st} church={myChurch2} isAdmin={isAdmin} user={user}/>
           }{tab==="pasteurs"      &&(canProgs||isAdmin)&&<PasteursTab st={st} user={user}/>}
           </div>
