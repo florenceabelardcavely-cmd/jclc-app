@@ -1920,7 +1920,7 @@ export default function App() {
   const toggleAvail=(mid,d)=>{
     const curAvail=st.avail[mid]||{};
     const newAvail={...curAvail};
-    if(newAvail[d])delete newAvail[d];else newAvail[d]=true;
+    if(newAvail[d])delete newAvail[d];else newAvail[d]={on:true,ts:new Date().toISOString()};
     upd(s=>{s.avail[mid]=newAvail;});
     const memberChurch=Object.keys(CHURCHES).map(cid=>st.members[cid]?.find(m=>m.id===mid)).find(Boolean)?.church||"lognes";
     sbUpsert("plannings",{id:mid+"_avail",member_id:mid,church:memberChurch,date:"availability",availability:JSON.stringify(newAvail)});
@@ -2197,10 +2197,10 @@ export default function App() {
 
   // ─── TABS & ROUTING ───
   const tabs = isAdmin
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"},...(user.role==="Pianiste"?[{id:"piano",l:"Piano",i:"🎹"}]:[])]
-    : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"planning-lognes",l:"Planning Lognes",i:"📅"},{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"},...(user.role==="Pianiste"?[{id:"piano",l:"Piano",i:"🎹"}]:[])]
+    : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
   const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
 
@@ -2307,7 +2307,6 @@ export default function App() {
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
           {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg} archiveProg={archiveProg} duplicateProg={duplicateProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
-          {tab==="planning-lognes"&&<PlanningLognesTab user={user} isAdmin={isAdmin}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
           {tab==="piano"          &&<PianoTab user={user}/>}
@@ -2959,11 +2958,16 @@ function DispoTab({user,isAdmin,st,church,year,month,prevMonth,nextMonth,toggleA
                 <div><div style={{fontWeight:700,fontSize:15}}>{displayMember.name}</div><div style={{fontSize:12,color:"var(--txt2)"}}>{displayMember.role}</div></div>
               </div>
               {!isAdmin&&<div className="ib ind" style={{marginBottom:14}}>💡 Cochez les dates de service où vous êtes disponible pour <strong>{MONTHS[month]}</strong>.</div>}
+              {isAdmin&&<div className="ib" style={{marginBottom:14,background:"var(--sur2)",color:"var(--txt2)"}}>🔒 Lecture seule — ces disponibilités sont saisies par le membre et ne peuvent pas être modifiées ici.</div>}
               {dates.length===0?<div className="empty"><div className="empty-icon">📭</div><div>Aucune date ce mois-ci</div></div>
               :dates.map(({date,type})=>{
-                const d=dk(date),on=isAvail(displayMember.id,d);
-                return(<div className="arow" key={d} onClick={()=>{toggleAvail(displayMember.id,d);if(!on&&!isAdmin)toast_("Disponibilité enregistrée","📝");}}>
-                  <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><span className={`atag ${getTypeCls(type)}`}>{getTypeLabel(type)}</span></div>
+                const d=dk(date),av=st.avail[displayMember.id]?.[d],on=!!av,ts=av&&typeof av==="object"?av.ts:null;
+                return(<div className="arow" key={d} style={isAdmin?{cursor:"default"}:undefined} onClick={()=>{if(isAdmin)return;toggleAvail(displayMember.id,d);if(!on)toast_("Disponibilité enregistrée","📝");}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div>
+                    <span className={`atag ${getTypeCls(type)}`}>{getTypeLabel(type)}</span>
+                    {isAdmin&&on&&ts&&<span style={{marginLeft:6,fontSize:9,color:"var(--txt3)"}}>saisi le {new Date(ts).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"})} à {new Date(ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}</span>}
+                  </div>
                   <div className={`chk${on?" on":""}`}>{on&&"✓"}</div>
                 </div>);
               })}
