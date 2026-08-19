@@ -1153,6 +1153,17 @@ function semit(from,to){
   return diff>6?diff-12:diff;
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
+// Un membre appartient à cid si c'est son assemblée principale, OU si cid figure
+// dans sa liste d'assemblées supplémentaires (churches), avec compatibilité
+// vers l'ancien champ church2 (une seule assemblée supplémentaire).
+function memberChurches(m){
+  if(m.churches&&m.churches.length)return [m.church,...m.churches];
+  if(m.church2)return [m.church,m.church2];
+  return [m.church];
+}
+function memberBelongsTo(m,cid){
+  return memberChurches(m).includes(cid);
+}
 function dk(d){const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${d.getFullYear()}-${mm}-${dd}`;}
 function fmt(d){return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
 function fmtSh(d){return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`;}
@@ -1744,7 +1755,7 @@ export default function App() {
         // members can belong to two churches via church2 field
         const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
         Object.keys(CHURCHES).forEach(cid=>{
-          const cMembers=mbrs.filter(m=>m.church===cid||m.church2===cid).map(mapM);
+          const cMembers=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
           if(cMembers.length)n.members[cid]=cMembers;
         });
         if(sngs.length)n.songs=sngs;
@@ -1791,7 +1802,7 @@ export default function App() {
           const n=JSON.parse(JSON.stringify(s));
           const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
           Object.keys(CHURCHES).forEach(cid=>{
-            const cMembers=mbrs.filter(m=>m.church===cid||m.church2===cid).map(mapM);
+            const cMembers=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
             if(cMembers.length)n.members[cid]=cMembers;
           });
           if(sngs.length)n.songs=sngs;
@@ -1872,7 +1883,8 @@ export default function App() {
   const myChurch = isAdmin ? church : (user?.church||"creil");
   const [activeChurch2, setActiveChurch2] = useState(null); // null = église principale
   const myChurch2 = isAdmin ? church : (activeChurch2 || user?.church || "creil");
-  const hasChurch2 = !isAdmin && user?.church2 && CHURCHES[user.church2];
+  const myOtherChurches = !isAdmin ? (user?.churches||(user?.church2?[user.church2]:[])).filter(cid=>CHURCHES[cid]) : [];
+  const hasChurch2 = myOtherChurches.length>0;
 
   function toast_(msg,icon="✅"){setToast({msg,icon});clearTimeout(toastRef.current);toastRef.current=setTimeout(()=>setToast(null),3200);}
   function upd(fn){setSt(s=>{const n=JSON.parse(JSON.stringify(s));fn(n);return n;});}
@@ -1884,10 +1896,10 @@ export default function App() {
       s.members[cid].push(nm);
       s.memberNotifications.push({id:uid(),memberId:nm.id,name:nm.name,church:CHURCHES[cid].fullName,pin:nm.pin||"0000",createdAt:new Date().toLocaleString("fr-FR"),seen:false});
     });
-    sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles||[nm.role],church:cid,church2:nm.church2||null,pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
+    sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles||[nm.role],church:cid,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
     toast_(`${m.name} ajouté(e) ✓`,"👤");
   };
-  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
+  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
   function changePin(newPin){
     if(!user||user.role==="admin"||user.role==="pasteur")return;
     for(const cid of Object.keys(CHURCHES)){
@@ -1909,14 +1921,14 @@ export default function App() {
     if(!m)return;
     const newVal=!m.canEditLib;
     upd(s=>{const mm=s.members[cid].find(x=>x.id===id);if(mm)mm.canEditLib=newVal;});
-    sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,church2:m.church2||null,pin:m.pin||"0000",can_edit_lib:newVal,can_edit_prog:m.canEditProg||false});
+    sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:newVal,can_edit_prog:m.canEditProg||false});
   };
   const toggleProg=(cid,id)=>{
     const m2=st.members[cid]?.find(x=>x.id===id);
     if(!m2)return;
     const newVal2=!m2.canEditProg;
     upd(s=>{const mm=s.members[cid].find(x=>x.id===id);if(mm)mm.canEditProg=newVal2;});
-    sbUpsert("members",{id:m2.id,name:m2.name,role:m2.role,roles:m2.roles||[m2.role],church:cid,church2:m2.church2||null,pin:m2.pin||"0000",can_edit_lib:m2.canEditLib||false,can_edit_prog:newVal2});
+    sbUpsert("members",{id:m2.id,name:m2.name,role:m2.role,roles:m2.roles||[m2.role],church:cid,churches:m2.churches||[],pin:m2.pin||"0000",can_edit_lib:m2.canEditLib||false,can_edit_prog:newVal2});
   };
 
   // Avail
@@ -2069,7 +2081,7 @@ export default function App() {
         setLoginPin(["","","",""]);
       }else{
         const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
-        const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+        const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:memberChurches(m)[1]||null,churches:memberChurches(m).slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
         window.__jclcMemberPin=(m.pin||"0000");
         setUser({...userData,loginTime:Date.now()});localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));
         setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
@@ -2096,7 +2108,7 @@ export default function App() {
       if(m){
         const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
         if(pin===(m.pin||"0000")){
-          const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:m.church2||null,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+          const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:memberChurches(m)[1]||null,churches:memberChurches(m).slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
           window.__jclcMemberPin=(m.pin||"0000");
           setUser(userData);setLoginPin(["","","",""]);setLoginAttempts(0);
           localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));setTab("accueil");
@@ -2287,7 +2299,7 @@ export default function App() {
         {hasChurch2&&(
           <div style={{display:"flex",gap:6,padding:"6px 16px",background:"var(--sur2)",borderBottom:"1px solid var(--bdr)"}}>
             <span style={{fontSize:11,color:"var(--txt3)",alignSelf:"center"}}>Assemblée :</span>
-            {[user.church,user.church2].map(cid=>(
+            {[user.church,...myOtherChurches].map(cid=>(
               <button key={cid} className={`btn btn-xs ${myChurch2===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch2(cid)}>
                 {CHURCHES[cid]?.name}
               </button>
@@ -2321,7 +2333,7 @@ export default function App() {
           {tab==="calendrier"    &&<CalendarTab user={user} isAdmin={isAdmin} church={myChurch2} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
 
           {tab==="bibliotheque"  &&<BibliothèqueTab st={st} canManage={canSongs} M={M} deleteSong={deleteSong}/>}
-          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} church2={user?.church2||null} M={M} deleteProg={deleteProg} archiveProg={archiveProg} duplicateProg={duplicateProg}/>}
+          {tab==="programmes"    &&canProgs&&<ProgrammesTab st={st} church={isAdmin?church:(user?.church||"creil")} churches={isAdmin?[]:myOtherChurches} M={M} deleteProg={deleteProg} archiveProg={archiveProg} duplicateProg={duplicateProg}/>}
           {tab==="statistiques"  &&isAdmin&&<StatistiquesTab st={st} church={church}/>}
           {tab==="faq"           &&<FAQTab isAdmin={isAdmin}/>}
           {tab==="chantres"       &&<ChantresTab/>}
@@ -3277,18 +3289,19 @@ function BibliothèqueTab({st,canManage,M,deleteSong}){
 // ══════════════════════════════════════════════════
 //  PROGRAMMES TAB
 // ══════════════════════════════════════════════════
-function ProgrammesTab({st,church,church2,M,deleteProg,archiveProg,duplicateProg}){
+function ProgrammesTab({st,church,churches,M,deleteProg,archiveProg,duplicateProg}){
   const [activeChurch,setActiveChurch]=useState(church||"creil");
   const [view,setView]=useState("actifs");
   useEffect(()=>{setActiveChurch(church||"creil");},[church]);
   const ch=CHURCHES[activeChurch]||CHURCHES[church]||CHURCHES.creil;
   const allProgs=st.programs.filter(p=>p.churchId===activeChurch&&p.status!=="repetition");
   const progs=view==="actifs"?allProgs.filter(p=>p.status!=="archived"):allProgs.filter(p=>p.status==="archived");
+  const otherChurches=(churches||[]).filter(cid=>CHURCHES[cid]);
   return(
     <div>
-      {church2&&CHURCHES[church2]&&(
+      {otherChurches.length>0&&(
         <div style={{display:"flex",gap:8,padding:"0 16px 12px"}}>
-          {[church,church2].map(cid=>(
+          {[church,...otherChurches].map(cid=>(
             <button key={cid} className={`btn btn-sm ${activeChurch===cid?"btn-p":"btn-g"}`} onClick={()=>setActiveChurch(cid)}>
               {CHURCHES[cid].fullName}
             </button>
@@ -4309,11 +4322,14 @@ function MemberModal({churchId,member,onSave,onClose}){
   const [email,setEmail]=useState(member?.email||"");
   const [phone,setPhone]=useState(member?.phone||"");
   const [pin,setPin]=useState(member?.pin||"0000");
-  const [church2,setChurch2]=useState(member?.church2||"");
+  const [churches,setChurches]=useState(member?.churches||(member?.church2?[member.church2]:[]));
   const valid=name&&pin.length===4&&/^\d{4}$/.test(pin)&&roles.length>0;
 
   function toggleRole(r){
     setRoles(prev=>prev.includes(r)?prev.filter(x=>x!==r):[...prev,r]);
+  }
+  function toggleChurch2(cid){
+    setChurches(prev=>prev.includes(cid)?prev.filter(x=>x!==cid):[...prev,cid]);
   }
 
   return(
@@ -4323,11 +4339,15 @@ function MemberModal({churchId,member,onSave,onClose}){
       <div className="g2">
         <div className="fld"><label>Nom *</label><input className="inp" placeholder="Prénom Nom" value={name} onChange={e=>setName(e.target.value)}/></div>
         <div className="fld">
-          <label>Deuxième assemblée</label>
-          <select className="sel" value={church2} onChange={e=>setChurch2(e.target.value)}>
-            <option value="">— Aucune —</option>
-            {Object.values(CHURCHES).filter(c=>c.id!==churchId).map(c=><option key={c.id} value={c.id}>{c.fullName}</option>)}
-          </select>
+          <label>Autres assemblées <span style={{fontWeight:400,color:"var(--txt3)",fontSize:11}}>(plusieurs possibles)</span></label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+            {Object.values(CHURCHES).filter(c=>c.id!==churchId).map(c=>(
+              <button key={c.id} type="button"
+                className={"btn btn-sm "+(churches.includes(c.id)?"btn-p":"btn-g")}
+                style={{fontSize:11,padding:"4px 10px"}}
+                onClick={()=>toggleChurch2(c.id)}>{c.fullName}</button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="fld">
@@ -4356,7 +4376,7 @@ function MemberModal({churchId,member,onSave,onClose}){
       )}
       <div className="flex-end">
         <button className="btn btn-g" onClick={onClose}>Annuler</button>
-        <button className="btn btn-p" disabled={!valid} onClick={()=>onSave({...member,name,role:roles[0],roles,email,phone,pin,church2:church2||null})}>
+        <button className="btn btn-p" disabled={!valid} onClick={()=>onSave({...member,name,role:roles[0],roles,email,phone,pin,churches,church2:churches[0]||null})}>
           {member?"Sauvegarder →":"Ajouter le membre →"}
         </button>
       </div>
