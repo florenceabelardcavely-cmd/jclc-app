@@ -13,7 +13,9 @@ async function sbDel(t,id){try{await fetch(`${SB_URL}/rest/v1/${t}?id=eq.${id}`,
 
 const CHURCHES = {
   creil:  { id:"creil",  name:"Creil",  fullName:"Église de Creil",  color:"#4F46E5", bg:"#EEF2FF",
-            serviceDays:[6,3], repDays:[], dayLabel:"Sam + Mer" },
+            serviceDays:[0,3], repDays:[], dayLabel:"Dim + Mer",
+            // Avant le 26/09/2026, le culte de Creil avait lieu le samedi (historique conservé)
+            legacy:{ until:"2026-09-26", serviceDays:[6,3] } },
   lognes: { id:"lognes", name:"Lognes", fullName:"Église de Lognes", color:"#D97706", bg:"#FFFBEB",
             serviceDays:[0,2], repDays:[], dayLabel:"Dim + Mar" },
   toulouse: { id:"toulouse", name:"Toulouse", fullName:"Église de Toulouse", color:"#059669", bg:"#ECFDF5",
@@ -25,6 +27,24 @@ const ROLES = [
   "Guitare sèche","Guitare électrique","Congas",
   "Directeur Musical (DM)","Autre"
 ];
+
+// ── SERVICE TECHNIQUE ──
+// Assemblées concernées et événements où la technique est de service
+const TECH_CHURCHES = ["creil","lognes"];
+const TECH_EVENTS = {
+  creil:  [ {day:0,type:"culte",  label:"Culte du dimanche",  icon:"🙏",micro:true},
+            {day:3,type:"atelier",label:"Atelier biblique",    icon:"📖"},
+            {day:4,type:"repet",  label:"Répétition",          icon:"🎼"},
+            {day:5,type:"priere", label:"Prière de feu",       icon:"🔥"} ],
+  lognes: [ {day:0,type:"culte",  label:"Culte du dimanche",  icon:"🙏",micro:true},
+            {day:2,type:"atelier",label:"Atelier biblique",    icon:"📖"},
+            {day:4,type:"repet",  label:"Répétition",          icon:"🎼"},
+            {day:5,type:"priere", label:"Prière de feu",       icon:"🔥"} ],
+};
+const TECH_ROLES = ["Console / Régie","Passage de micro"];
+const TECH_REGIE = "Console / Régie"; // poste à pourvoir à chaque date
+const RESP_TECH  = "Responsable technique";
+const TECH_EV_COLORS = { culte:"#4F46E5", atelier:"#0891B2", repet:"#D97706", priere:"#DC2626" };
 
 const CATEGORIES_CHANT = ["Adoration","Louange","Sainte-Cène","Dîme & Offrandes"];
 
@@ -1153,6 +1173,43 @@ function semit(from,to){
   return diff>6?diff-12:diff;
 }
 function uid(){return Math.random().toString(36).slice(2,9);}
+// ── Migration unique : Creil passe du samedi au dimanche (à partir du 26/09/2026) ──
+// Décale au lendemain tout ce qui était prévu un samedi à Creil : membres planifiés,
+// sélection de service + Lead, disponibilités (membres de Creil hors Toulouse) et programmes.
+// Exécutée une seule fois (drapeau "migration_creil_dimanche" dans plannings).
+const CREIL_SWITCH="2026-09-26";
+async function migrateCreilToSunday(){
+  const rows=await sbGet("plannings");
+  if(!Array.isArray(rows)||rows.length===0)return false;
+  if(rows.some(r=>r.id==="migration_creil_dimanche"))return false;
+  const isSat=d=>typeof d==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&d>=CREIL_SWITCH&&new Date(d+"T12:00:00").getDay()===6;
+  const next=d=>{const x=new Date(d+"T12:00:00");x.setDate(x.getDate()+1);return dk(x);};
+  const mbrs=await sbGet("members");
+  const creilOnly=new Set((mbrs||[]).filter(m=>{const cs=memberChurches(m);return cs.includes("creil")&&!cs.includes("toulouse");}).map(m=>m.id));
+  const ups=[],dels=[];
+  rows.forEach(r=>{
+    if(r.church==="creil"&&isSat(r.date)){
+      const nd=next(r.date);
+      const newId=r.id.includes(r.date)?r.id.split(r.date).join(nd):r.id+"_"+nd;
+      ups.push({...r,id:newId,date:nd});
+      if(newId!==r.id)dels.push(r.id);
+    }else if(r.date==="availability"&&creilOnly.has(r.member_id)&&r.availability){
+      try{
+        const av=JSON.parse(r.availability);let changed=false;
+        Object.keys(av).forEach(k=>{if(isSat(k)){const nk=next(k);if(!av[nk])av[nk]=av[k];delete av[k];changed=true;}});
+        if(changed)ups.push({...r,availability:JSON.stringify(av)});
+      }catch{}
+    }
+  });
+  const progs=await sbGet("programs");
+  const progUps=(progs||[]).filter(p=>(p.church||p.church_id)==="creil"&&isSat(p.date)).map(p=>({...p,date:next(p.date)}));
+  if(ups.length)await sbUpsert("plannings",ups);
+  for(const id of dels)await sbDel("plannings",id);
+  if(progUps.length)await sbUpsert("programs",progUps);
+  await sbUpsert("plannings",{id:"migration_creil_dimanche",member_id:"migration",church:"creil",date:"migration",availability:JSON.stringify({done:new Date().toISOString(),rows:ups.length,programs:progUps.length})});
+  return true;
+}
+
 // Un membre appartient à cid si c'est son assemblée principale, OU si cid figure
 // dans sa liste d'assemblées supplémentaires (churches), avec compatibilité
 // vers l'ancien champ church2 (une seule assemblée supplémentaire).
@@ -1164,6 +1221,50 @@ function memberChurches(m){
 function memberBelongsTo(m,cid){
   return memberChurches(m).includes(cid);
 }
+// Équipe(s) d'un membre selon ses rôles : un même membre peut être louange ET technique
+function memberRoles(m){return (m.roles&&m.roles.length?m.roles:[m.role]).filter(Boolean);}
+function isTechMember(m){return memberRoles(m).some(r=>TECH_ROLES.includes(r)||r===RESP_TECH);}
+function isLouangeMember(m){const rs=memberRoles(m);return rs.length===0||rs.some(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH);}
+function isRespTechMember(m){return memberRoles(m).includes(RESP_TECH);}
+function techPosts(m){return memberRoles(m).filter(r=>TECH_ROLES.includes(r));}
+function getTechDates(year,month,cid){
+  const evs=TECH_EVENTS[cid]||[],out=[];
+  const d=new Date(year,month,1);
+  while(d.getMonth()===month){
+    const dow=d.getDay();
+    evs.filter(e=>e.day===dow).forEach(ev=>out.push({date:new Date(d),d:dk(d),ev}));
+    d.setDate(d.getDate()+1);
+  }
+  return out;
+}
+// Clé de dispo technique : assemblée + date (un membre peut servir à Creil et à Lognes)
+function techKey(cid,d){return cid+"|"+d;}
+// Répartit les membres Supabase entre louange et technique, par assemblée
+function splitMembers(mbrs,n){
+  const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
+  if(!n.techMembers)n.techMembers={};
+  Object.keys(CHURCHES).forEach(cid=>{
+    const cM=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
+    if(cM.length)n.members[cid]=cM.filter(isLouangeMember);
+    n.techMembers[cid]=cM.filter(isTechMember);
+  });
+}
+// Lignes "plannings" propres à la technique (et drapeau de migration) — ignorées par la louange
+function handleExtraRow(p,n){
+  if(p.member_id==="migration")return true;
+  if(!n.techPlans)n.techPlans={};if(!n.techAvail)n.techAvail={};if(!n.techDispoSent)n.techDispoSent={};if(!n.techValidated)n.techValidated={};
+  if(p.member_id==="tech"&&p.church&&p.date){try{const a=JSON.parse(p.availability||"{}");if(!n.techPlans[p.church])n.techPlans[p.church]={};n.techPlans[p.church][p.date]=a&&typeof a==="object"?a:{};}catch{}return true;}
+  if(p.date==="tech_availability"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techAvail[p.member_id]=a;}catch{}return true;}
+  if(p.date==="tech_dispo_sent"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techDispoSent[p.member_id]=a;}catch{}return true;}
+  if(p.date==="tech_validated"&&p.church){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techValidated[p.church]=a;}catch{}return true;}
+  return false;
+}
+function buildUserData(m,team){
+  const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
+  const cs=memberChurches(m);
+  return {id:m.id,name:m.name,role:m.role,church:m.church,church2:cs[1]||null,churches:cs.slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien,
+    team:team==="tech"?"tech":"louange",isRespTech:team==="tech"&&isRespTechMember(m)};
+}
 function dk(d){const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${d.getFullYear()}-${mm}-${dd}`;}
 function fmt(d){return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
 function fmtSh(d){return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}`;}
@@ -1173,8 +1274,9 @@ function getDates(year,month,churchId){
   const d=new Date(year,month,1);
   while(d.getMonth()===month){
     const dow=d.getDay();
-    // Services : jours définis dans serviceDays
-    if(ch.serviceDays.includes(dow)){
+    // Services : jours définis dans serviceDays (ou anciens jours avant changement)
+    const days=(ch.legacy&&dk(d)<ch.legacy.until)?ch.legacy.serviceDays:ch.serviceDays;
+    if(days.includes(dow)){
       const typeMap={6:"sam",3:"mer",0:"dim",2:"mar"};
       out.push({date:new Date(d),type:typeMap[dow]||"serv",isService:true});
     }
@@ -1283,6 +1385,7 @@ input,select,textarea{font-family:inherit;}
 .pill-dm{background:#DBEAFE;color:#1E40AF;}
 .pill-bib{background:var(--grn-bg);color:var(--grn);}
 .pill-member{background:var(--sur2);color:var(--txt2);}
+.pill-tech{background:#CFFAFE;color:#155E75;}
 .pill-musicien{background:#FCE7F3;color:#9D174D;}
 .bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
 .bdg-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
@@ -1470,6 +1573,13 @@ const INIT = {
   planStatus: { creil:"draft", lognes:"draft", toulouse:"draft" },
   validatedMonths: { creil:{}, lognes:{}, toulouse:{} },
   planService:{ creil:{}, lognes:{}, toulouse:{} }, // membres sélectionnés pour service
+  planLead:   { creil:{}, lognes:{}, toulouse:{} }, // lead 🎤 par date
+  // Service technique
+  techMembers:  { creil:[], lognes:[], toulouse:[] },
+  techPlans:    { creil:{}, lognes:{} },   // { cid: { "YYYY-MM-DD": { memberId: poste } } }
+  techAvail:    {},                         // { memberId: { "cid|YYYY-MM-DD": {on,ts} } }
+  techDispoSent:{},                         // { memberId: { "cid|YYYY-MM": true } }
+  techValidated:{ creil:{}, lognes:{} },    // { cid: { "YYYY-MM": true } }
   notifLog:   [],
   songs:      SONGS0,
   programs:   [],
@@ -1517,7 +1627,7 @@ const SCHEDULE_LABELS = {
   lognes: { atelier: { day:2, label:"Mardi",    icon:"📖", title:"Atelier Biblique" },
             culte:   { day:0, label:"Dimanche",  icon:"🙏", title:"Culte" } },
   creil:  { atelier: { day:3, label:"Mercredi",  icon:"📖", title:"Atelier Biblique" },
-            culte:   { day:6, label:"Samedi",     icon:"🙏", title:"Culte" } },
+            culte:   { day:0, label:"Dimanche",   icon:"🙏", title:"Culte" } },
   toulouse: { culte: { day:6, label:"Samedi", icon:"🙏", title:"Culte" } },
 };
 
@@ -1538,8 +1648,10 @@ function FlyerModal({church,st,month,year,onClose}){
     while(d.getMonth()===month){ if(d.getDay()===dayOfWeek) out.push(new Date(d)); d.setDate(d.getDate()+1); }
     return out;
   }
-  const atelierDates = sched.atelier ? getDatesForType(sched.atelier.day) : [];
-  const culteDates   = getDatesForType(sched.culte.day);
+  // Basé sur getDates pour respecter le changement de jour de Creil (samedi → dimanche)
+  const monthDates   = getDates(year,month,cid);
+  const atelierDates = sched.atelier ? monthDates.filter(x=>x.type==="mer"||x.type==="mar").map(x=>x.date) : [];
+  const culteDates   = monthDates.filter(x=>x.type==="sam"||x.type==="dim").map(x=>x.date);
 
   function getMembersForDate(date){
     const ds=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`;
@@ -1753,17 +1865,14 @@ export default function App() {
       setSt(s=>{
         const n=JSON.parse(JSON.stringify(s));
         // members can belong to two churches via church2 field
-        const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
-        Object.keys(CHURCHES).forEach(cid=>{
-          const cMembers=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
-          if(cMembers.length)n.members[cid]=cMembers;
-        });
+        splitMembers(mbrs,n);
         if(sngs.length)n.songs=sngs;
-        n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));
+        n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
         plans.forEach(p=>{
-          if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
+          if(handleExtraRow(p,n)){}
+          else if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
             else if(p.date==="dispo_sent"&&p.member_id&&p.availability){try{const ds=JSON.parse(p.availability);if(typeof ds==="object"&&!Array.isArray(ds)){n.dispoSent[p.member_id]=ds;}}catch{}}
-          else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
+          else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const raw=JSON.parse(p.availability);const ids=Array.isArray(raw)?raw:(raw&&Array.isArray(raw.ids)?raw.ids:null);if(ids){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;if(!n.planLead)n.planLead={};if(!n.planLead[p.church])n.planLead[p.church]={};n.planLead[p.church][p.date]=(!Array.isArray(raw)&&raw.leadId)||null;}}catch{}}
           else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
           else if(p.date==="validated_months"&&p.church){try{n.validatedMonths[p.church]=JSON.parse(p.availability||"{}");}catch{}}
           else if(p.church&&p.date&&p.member_id&&p.member_id!=="plan"&&p.member_id!=="service"&&p.date!=="availability"&&p.date!=="status"){if(!n.plans[p.church])n.plans[p.church]={};if(!n.plans[p.church][p.date])n.plans[p.church][p.date]=[];if(!n.plans[p.church][p.date].includes(p.member_id))n.plans[p.church][p.date].push(p.member_id);}
@@ -1800,19 +1909,16 @@ export default function App() {
         const [mbrs,sngs,plans,progs]=await Promise.all([sbGet("members"),sbGet("songs"),sbGet("plannings"),sbGet("programs")]);
         setSt(s=>{
           const n=JSON.parse(JSON.stringify(s));
-          const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
-          Object.keys(CHURCHES).forEach(cid=>{
-            const cMembers=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
-            if(cMembers.length)n.members[cid]=cMembers;
-          });
+          splitMembers(mbrs,n);
           if(sngs.length)n.songs=sngs;
           n.plans=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));
-          n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));
+          n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
           // Garder planStatus existant, juste mettre à jour depuis Supabase
           plans.forEach(p=>{
-            if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
+            if(handleExtraRow(p,n)){}
+            else if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
             else if(p.date==="dispo_sent"&&p.member_id&&p.availability){try{const ds=JSON.parse(p.availability);if(typeof ds==="object"&&!Array.isArray(ds)){n.dispoSent[p.member_id]=ds;}}catch{}}
-            else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;}}catch{}}
+            else if(p.member_id==="service"&&p.availability&&p.church&&p.date){try{const raw=JSON.parse(p.availability);const ids=Array.isArray(raw)?raw:(raw&&Array.isArray(raw.ids)?raw.ids:null);if(ids){if(!n.planService[p.church])n.planService[p.church]={};n.planService[p.church][p.date]=ids;if(!n.planLead)n.planLead={};if(!n.planLead[p.church])n.planLead[p.church]={};n.planLead[p.church][p.date]=(!Array.isArray(raw)&&raw.leadId)||null;}}catch{}}
             else if(p.date==="status"&&p.member_id&&p.church){try{n.planStatus[p.church]=p.availability||"draft";}catch{}}
             else if(p.date==="validated_months"&&p.church){try{n.validatedMonths[p.church]=JSON.parse(p.availability||"{}");}catch{}}
             else if(p.date&&p.member_id==="plan"&&p.availability){try{const ids=JSON.parse(p.availability);if(Array.isArray(ids)&&p.church){if(!n.plans[p.church])n.plans[p.church]={};n.plans[p.church][p.date]=ids;}}catch{}}
@@ -1848,6 +1954,7 @@ export default function App() {
   });
   const [loginId, setLoginId] = useState("admin");
   const [loginSearch, setLoginSearch] = useState("");
+  const [loginTeam, setLoginTeam] = useState("louange"); // "louange" | "tech"
   const [changePinModal, setChangePinModal] = useState(false);
   const [loginPwd, setLoginPwd] = useState("");
   const [sessionExpired,setSessionExpired]=useState(()=>{
@@ -1899,14 +2006,14 @@ export default function App() {
     sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles||[nm.role],church:cid,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
     toast_(`${m.name} ajouté(e) ✓`,"👤");
   };
-  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
+  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;Object.keys(s.techMembers||{}).forEach(c=>{const j=s.techMembers[c].findIndex(x=>x.id===m.id);if(j>=0)s.techMembers[c][j]={...s.techMembers[c][j],...m};});});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
   function changePin(newPin){
     if(!user||user.role==="admin"||user.role==="pasteur")return;
     for(const cid of Object.keys(CHURCHES)){
-      const m=st.members[cid].find(x=>x.id===user.id);
+      const m=(st.members[cid]||[]).find(x=>x.id===user.id)||(st.techMembers?.[cid]||[]).find(x=>x.id===user.id);
       if(m){
         const updated={...m,pin:newPin};
-        upd(s=>{const i=s.members[cid].findIndex(x=>x.id===user.id);if(i>=0)s.members[cid][i]=updated;});
+        upd(s=>{["members","techMembers"].forEach(k=>Object.keys(s[k]||{}).forEach(c=>{s[k][c]=(s[k][c]||[]).map(x=>x.id===user.id?{...x,pin:newPin}:x);}));});
         sbUpsert("members",{id:updated.id,name:updated.name,role:updated.role,church:cid,pin:newPin,can_edit_lib:updated.canEditLib||false});
         window.__jclcMemberPin=newPin;
         toast_("Code PIN modifié avec succès","🔐");
@@ -1915,7 +2022,7 @@ export default function App() {
       }
     }
   }
-  const deleteMember=(cid,id)=>{upd(s=>{s.members[cid]=s.members[cid].filter(m=>m.id!==id);delete s.avail[id];});sbDel("members",id);toast_("Membre supprimé","🗑️");};
+  const deleteMember=(cid,id)=>{upd(s=>{s.members[cid]=s.members[cid].filter(m=>m.id!==id);delete s.avail[id];Object.keys(s.techMembers||{}).forEach(c=>{s.techMembers[c]=s.techMembers[c].filter(m=>m.id!==id);});});sbDel("members",id);toast_("Membre supprimé","🗑️");};
   const toggleLib=(cid,id)=>{
     const m=st.members[cid]?.find(x=>x.id===id);
     if(!m)return;
@@ -1954,6 +2061,85 @@ export default function App() {
     const ds={...(st.dispoSent[mid]||{}),[monthKey]:true};
     sbUpsert("plannings",{id:mid+"_dispo_sent",member_id:mid,church:memberChurch,date:"dispo_sent",availability:JSON.stringify(ds)});
   };
+
+  // ── Service technique ──
+  const isTech     = user && user.team==="tech";
+  const isRespTech = isTech && user.isRespTech===true;
+  // Place un membre dans les bonnes listes (louange / technique) de chaque assemblée
+  function placeMember(s,m){
+    Object.keys(CHURCHES).forEach(c=>{
+      ["members","techMembers"].forEach(k=>{if(!s[k])s[k]={};s[k][c]=(s[k][c]||[]).filter(x=>x.id!==m.id);});
+      if(memberBelongsTo(m,c)){
+        if(isLouangeMember(m))s.members[c].push(m);
+        if(isTechMember(m))s.techMembers[c].push(m);
+      }
+    });
+  }
+  const saveTechMember=(cid,m,isNew)=>{
+    const nm={...m,id:m.id||uid(),church:m.church||cid,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false};
+    upd(s=>{
+      placeMember(s,nm);
+      if(isNew)s.memberNotifications.push({id:uid(),memberId:nm.id,name:nm.name,church:CHURCHES[nm.church].fullName+" · Technique",pin:nm.pin||"0000",createdAt:new Date().toLocaleString("fr-FR"),seen:false});
+    });
+    sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib,can_edit_prog:nm.canEditProg});
+    toast_(isNew?`${nm.name} ajouté(e) à la technique ✓`:"Fiche mise à jour",isNew?"🎛️":"✏️");
+  };
+  const deleteTechMember=(m)=>{
+    const rest=memberRoles(m).filter(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH);
+    if(rest.length>0){
+      // Membre aussi dans la louange : on lui retire seulement ses postes techniques
+      if(!window.confirm(`${m.name} fait aussi partie de la louange. Le/la retirer uniquement de la technique ?`))return;
+      const nm={...m,roles:rest,role:rest.includes(m.role)?m.role:rest[0]};
+      upd(s=>placeMember(s,nm));
+      sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
+      toast_(`${m.name} retiré(e) de la technique`,"🗑️");
+    }else{
+      if(!window.confirm(`Supprimer ${m.name} ?`))return;
+      upd(s=>{Object.keys(CHURCHES).forEach(c=>{s.techMembers[c]=(s.techMembers[c]||[]).filter(x=>x.id!==m.id);});delete s.techAvail[m.id];});
+      sbDel("members",m.id);
+      toast_("Membre supprimé","🗑️");
+    }
+  };
+  const toggleTechAvail=(mid,cid,d)=>{
+    const k=techKey(cid,d),mk=techKey(cid,d.slice(0,7));
+    const na={...(st.techAvail[mid]||{})};
+    if(na[k])delete na[k];else na[k]={on:true,ts:new Date().toISOString()};
+    upd(s=>{
+      s.techAvail[mid]=na;
+      if(s.techDispoSent[mid]?.[mk]){
+        const ds={...s.techDispoSent[mid]};delete ds[mk];s.techDispoSent[mid]=ds;
+        sbUpsert("plannings",{id:mid+"_techdispo_sent",member_id:mid,church:cid,date:"tech_dispo_sent",availability:JSON.stringify(ds)});
+      }
+    });
+    sbUpsert("plannings",{id:mid+"_techavail",member_id:mid,church:cid,date:"tech_availability",availability:JSON.stringify(na)});
+  };
+  const sendTechDispo=(mid,cid,monthKey)=>{
+    const mk=techKey(cid,monthKey);
+    const ds={...(st.techDispoSent[mid]||{}),[mk]:true};
+    upd(s=>{s.techDispoSent[mid]=ds;});
+    sbUpsert("plannings",{id:mid+"_techdispo_sent",member_id:mid,church:cid,date:"tech_dispo_sent",availability:JSON.stringify(ds)});
+  };
+  const setTechAssign=(cid,d,assign)=>{
+    upd(s=>{if(!s.techPlans[cid])s.techPlans[cid]={};if(Object.keys(assign).length)s.techPlans[cid][d]=assign;else delete s.techPlans[cid][d];});
+    if(Object.keys(assign).length)sbUpsert("plannings",{id:"tech_"+cid+"_"+d,member_id:"tech",church:cid,date:d,availability:JSON.stringify(assign)});
+    else sbDel("plannings","tech_"+cid+"_"+d);
+  };
+  const setTechValidated=(cid,mk,val)=>{
+    const cur={...(st.techValidated?.[cid]||{})};
+    if(val)cur[mk]=true;else delete cur[mk];
+    upd(s=>{if(!s.techValidated)s.techValidated={};s.techValidated[cid]=cur;});
+    sbUpsert("plannings",{id:"tech_validated_"+cid,member_id:"tech_status",church:cid,date:"tech_validated",availability:JSON.stringify(cur)});
+    toast_(val?"Planning technique validé et publié":"Planning technique repassé en brouillon",val?"✅":"✏️");
+  };
+  const techActions={toggleTechAvail,sendTechDispo,setTechAssign,setTechValidated,saveTechMember,deleteTechMember};
+
+  // Migration unique Creil samedi → dimanche : lancée automatiquement à la connexion admin
+  useEffect(()=>{
+    if(!appLoaded||!user||user.role!=="admin")return;
+    migrateCreilToSunday().then(done=>{
+      if(done){toast_("Creil : les services du samedi ont été déplacés au dimanche","📅");setTimeout(()=>window.location.reload(),2000);}
+    }).catch(e=>console.error("Migration Creil:",e));
+  },[appLoaded,user?.role]);
 
   // Planning
   const assignDate=(cid,d,ids)=>{
@@ -2056,7 +2242,7 @@ export default function App() {
   function login(){
     if(loginLocked)return;
     setLoginErr("");
-    if(loginId==="admin"||loginId==="pasteur"){
+    if(loginTeam!=="tech"&&(loginId==="admin"||loginId==="pasteur")){
       const expected=loginId==="admin"?"Admin2024!":"Pasteur2024!";
       if(loginPwd!==expected){
         const att=loginAttempts+1;setLoginAttempts(att);
@@ -2069,7 +2255,7 @@ export default function App() {
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
-    const allMembers=Object.keys(CHURCHES).flatMap(cid=>st.members[cid]||[]);
+    const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
     const seen=new Set();
     const uniqueMembers=allMembers.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;});
     const m=uniqueMembers.find(x=>x.id===loginId);
@@ -2080,8 +2266,7 @@ export default function App() {
         else setLoginErr(`Code PIN incorrect. ${3-att} tentative(s) restante(s).`);
         setLoginPin(["","","",""]);
       }else{
-        const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
-        const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:memberChurches(m)[1]||null,churches:memberChurches(m).slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+        const userData=buildUserData(m,loginTeam);
         window.__jclcMemberPin=(m.pin||"0000");
         setUser({...userData,loginTime:Date.now()});localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));
         setLoginPin(["","","",""]);setLoginAttempts(0);setTab("accueil");
@@ -2091,7 +2276,7 @@ export default function App() {
     setLoginErr("Compte introuvable. Vérifiez votre prénom.");
   }
 
-  const isAdminLogin=loginId==="admin"||loginId==="pasteur";
+  const isAdminLogin=loginTeam!=="tech"&&(loginId==="admin"||loginId==="pasteur");
   const pinRefs=[useRef(),useRef(),useRef(),useRef()];
 
   function handlePinInput(i,val){
@@ -2101,14 +2286,13 @@ export default function App() {
     if(!val&&i>0)pinRefs[i-1].current?.focus();
     if(val&&i===3&&np.every(d=>d!=="")){
       const pin=np.join("");
-      const allM=Object.keys(CHURCHES).flatMap(cid=>st.members[cid]||[]);
+      const allM=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
       const seen2=new Set();
       const uniqM=allM.filter(m=>{if(seen2.has(m.id))return false;seen2.add(m.id);return true;});
       const m=uniqM.find(x=>x.id===loginId);
       if(m){
-        const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
         if(pin===(m.pin||"0000")){
-          const userData={id:m.id,name:m.name,role:m.role,church:m.church,church2:memberChurches(m)[1]||null,churches:memberChurches(m).slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien};
+          const userData=buildUserData(m,loginTeam);
           window.__jclcMemberPin=(m.pin||"0000");
           setUser(userData);setLoginPin(["","","",""]);setLoginAttempts(0);
           localStorage.setItem("jclc_user",JSON.stringify({...userData,loginTime:Date.now()}));setTab("accueil");
@@ -2132,8 +2316,12 @@ export default function App() {
       <div className="login">
         <div className="lcard">
           <img src={LOGO_B64} alt="JCLC" style={{width:88,height:88,objectFit:"contain",filter:"drop-shadow(0 4px 20px rgba(255,170,0,.4))",marginBottom:18}}/>
-          <div className="ltitle">Groupe de Louange</div>
+          <div className="ltitle">Groupe de Louange<br/>& Technique</div>
           <div className="lsub">Jésus-Christ Le Chemin</div>
+          <div style={{display:"inline-flex",alignItems:"center",gap:6,margin:"4px auto 10px",padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:700,
+            background:loginTeam==="tech"?"rgba(8,145,178,.25)":"rgba(245,158,11,.15)",color:loginTeam==="tech"?"#67E8F9":"#FCD34D",border:`1px solid ${loginTeam==="tech"?"rgba(103,232,249,.35)":"rgba(252,211,77,.3)"}`}}>
+            {loginTeam==="tech"?"🎛️ Connexion Technique":"🎵 Connexion Louange"}
+          </div>
 
           <label className="llabel" style={{marginTop:8}}>Votre prénom</label>
           <input className="lsel" type="text" placeholder="Tapez votre prénom..." value={loginSearch||""} autoComplete="off"
@@ -2142,11 +2330,11 @@ export default function App() {
 
           {loginSearch&&loginSearch.length>=2&&(()=>{
             const q=loginSearch.toLowerCase();
-            const specials=[
+            const specials=loginTeam==="tech"?[]:[
               {id:"admin",name:"Administrateur",role:"admin",church:"both"},
               {id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"}
             ].filter(s=>s.name.toLowerCase().includes(q));
-            const allMembers=Object.keys(CHURCHES).flatMap(cid=>st.members[cid]||[]);
+            const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
             const seen=new Set();
             const members=allMembers.filter(m=>{if(seen.has(m.id))return false;if(m.name.toLowerCase().includes(q)){seen.add(m.id);return true;}return false;});
             const results=[...specials,...members];
@@ -2164,7 +2352,7 @@ export default function App() {
                     </div>
                     <div>
                       <div style={{fontWeight:600,fontSize:13,color:"#fff"}}>{m.name}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{m.role==="admin"?"Administrateur":m.role==="pasteur"?"Pasteur":m.role||""}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{m.role==="admin"?"Administrateur":m.role==="pasteur"?"Pasteur":loginTeam==="tech"?(isRespTechMember(m)?RESP_TECH:techPosts(m).join(" · ")):m.role||""}</div>
                     </div>
                     {loginId===m.id&&<div style={{marginLeft:"auto",color:"#a5b4fc",fontSize:16}}>✓</div>}
                   </div>
@@ -2218,19 +2406,35 @@ export default function App() {
           {Object.keys(CHURCHES).every(cid=>(st.members[cid]||[]).length===0)&&(
             <p className="lnote" style={{marginTop:10}}>Les membres apparaissent après ajout par l'administrateur</p>
           )}
+
+          <div style={{display:"flex",alignItems:"center",gap:10,margin:"22px 0 12px"}}>
+            <div style={{flex:1,height:1,background:"rgba(255,255,255,.12)"}}/>
+            <span style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{loginTeam==="tech"?"Vous êtes de la louange ?":"Vous êtes de la technique ?"}</span>
+            <div style={{flex:1,height:1,background:"rgba(255,255,255,.12)"}}/>
+          </div>
+          <button onClick={()=>{setLoginTeam(t=>t==="tech"?"louange":"tech");setLoginSearch("");setLoginId("admin");setLoginPwd("");setLoginPin(["","","",""]);setLoginErr("");setLoginAttempts(0);}}
+            style={{width:"100%",padding:"13px",borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:800,letterSpacing:.2,transition:"all .2s",
+              background:loginTeam==="tech"?"rgba(245,158,11,.12)":"rgba(8,145,178,.18)",
+              border:`1.5px solid ${loginTeam==="tech"?"rgba(245,158,11,.45)":"rgba(103,232,249,.45)"}`,
+              color:loginTeam==="tech"?"#FCD34D":"#67E8F9"}}>
+            {loginTeam==="tech"?"🎵 Connexion Louange":"🎛️ Connexion Technique"}
+          </button>
         </div>
       </div>
     </>
   );
 
   // ─── TABS & ROUTING ───
-  const tabs = isAdmin
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"faq",l:"FAQ",i:"❓"}]
+  const tabs = isTech
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"tech-mon-planning",l:"Mon planning",i:"⭐"},{id:"tech-dispos",l:"Disponibilités",i:"📅"},
+       ...(isRespTech?[{id:"tech-planning",l:"Planification",i:"📋"},{id:"tech-membres",l:"Équipe technique",i:"👥"},{id:"louange-consult",l:"Louange",i:"🎵"}]:[])]
+    : isAdmin
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"technique",l:"Technique",i:"🎛️"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"},...(user.role==="Pianiste"?[{id:"piano",l:"Piano",i:"🎹"}]:[])]
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
-  const pillCls=user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
+  const pillCls=isTech?"pill-tech":user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
 
   const M={
     addMember:(cid)=>setModal({t:"addMember",cid}),
@@ -2278,7 +2482,7 @@ export default function App() {
           <div className="hbrand">
             <img src={LOGO_B64} alt="JCLC"/>
             <div className="hbrand-t">
-              <span className="hbrand-n">Groupe de Louange</span>
+              <span className="hbrand-n">Groupe de Louange & Technique</span>
               <span className="hbrand-s">Jésus-Christ Le Chemin</span>
             </div>
           </div>
@@ -2289,7 +2493,7 @@ export default function App() {
               </button>
             )}
             <span className="husr">{user.name}</span>
-            <span className={`pill ${pillCls}`}>{user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
+            <span className={`pill ${pillCls}`}>{isTech?(isRespTech?"Resp. technique":"Technique"):user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
             {user.role!=="admin"&&user.role!=="pasteur"&&<button className="btn btn-g btn-sm" title="Changer mon code PIN" onClick={()=>setChangePinModal(true)}>🔐 PIN</button>}
             <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");}}>Déconnexion</button>
           </div>
@@ -2323,7 +2527,14 @@ export default function App() {
           )}
 
           <div className="tab-content">
-          {tab==="accueil"       &&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
+          {tab==="accueil"       &&isTech&&<TechAccueilTab user={user} st={st} verset={verset} onGo={setTab}/>}
+          {tab==="tech-mon-planning"&&isTech&&<TechMonPlanningTab user={user} st={st}/>}
+          {tab==="tech-dispos"   &&isTech&&<TechDispoTab user={user} st={st} church={TECH_CHURCHES.includes(myChurch2)?myChurch2:(memberChurches(user).find(c=>TECH_CHURCHES.includes(c))||"creil")} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions} toast_={toast_}/>}
+          {tab==="tech-planning" &&isRespTech&&<TechPlanningTab st={st} canEdit={true} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions}/>}
+          {tab==="tech-membres"  &&isRespTech&&<TechMembresTab st={st} canSetResp={false} A={techActions}/>}
+          {tab==="louange-consult"&&isRespTech&&<LouangeConsultTab st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
+          {tab==="technique"     &&isAdmin&&<AdminTechTab st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions}/>}
+          {tab==="accueil"       &&!isTech&&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
           {tab==="mon-planning"  &&!isAdmin&&<MonPlanningTab user={user} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} activeChurch={myChurch2}/>}
@@ -3444,7 +3655,7 @@ const FAQ_ITEMS=[
   {q:"Comment exporter un programme pour ProPresenter ?",a:"Dans l'onglet Programmes, cliquez sur l'icône d'export ProPresenter. Un fichier .txt sera généré avec les paroles uniquement, prêt à être importé dans ProPresenter pour la projection."},
   {q:"Je ne vois pas mon nom dans la liste de connexion. Que faire ?",a:"Contactez votre administrateur pour qu'il vous ajoute à la liste des membres. Une notification vous sera envoyée avec votre code PIN dès votre ajout."},
   {q:"Comment connaître mon code PIN ?",a:"Votre code PIN vous a été communiqué lors de votre ajout par l'administrateur. Si vous l'avez oublié, contactez l'administrateur qui peut le voir dans l'onglet 'Permissions'."},
-  {q:"Pourquoi je ne vois pas les dates du calendrier ?",a:"Le calendrier affiche les dates en fonction de votre église. Creil : samedis et mercredis. Lognes : dimanches et mardis."},
+  {q:"Pourquoi je ne vois pas les dates du calendrier ?",a:"Le calendrier affiche les dates en fonction de votre église. Creil : dimanches et mercredis. Lognes : dimanches et mardis."},
   {q:"Comment est calculée la statistique de présence ?",a:"L'administrateur peut consulter dans l'onglet 'Statistiques' le nombre de services assurés par chaque membre, basé sur les assignations dans le planning."},
   {q:"L'application fonctionne-t-elle sans internet ?",a:"Pas encore en mode hors-ligne complet, mais cette fonctionnalité est prévue. Pour l'instant, une connexion internet est nécessaire pour charger les données. Nous recommandons d'ouvrir l'app avant d'arriver à l'église pour que tout soit chargé."},
   {q:"Comment installer l'application sur mon téléphone ?",a:"Sur iPhone : ouvrez Safari, appuyez sur le bouton Partager puis 'Sur l'écran d'accueil'. Sur Android : ouvrez Chrome, appuyez sur les 3 points puis 'Ajouter à l'écran d'accueil'. L'icône JCLC apparaîtra comme une vraie application."},
@@ -5913,6 +6124,547 @@ function PianoTab({ user }) {
         .pk-finger{font-size:15px;font-weight:700;fill:#fff;text-anchor:middle;pointer-events:none;}
         .pk-finger-white{fill:#3a2a06;}
       `}</style>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+//  SERVICE TECHNIQUE
+// ══════════════════════════════════════════════════
+function techMonthKey(year,month){return `${year}-${String(month+1).padStart(2,"0")}`;}
+function TechChurchSwitch({value,onChange,st}){
+  return(
+    <div className="csw">
+      {TECH_CHURCHES.map(cid=>{const c=CHURCHES[cid];return(
+        <button key={cid} className={`cswb${value===cid?" "+cid:""}`} onClick={()=>onChange(cid)}>
+          <span className="cswb-dot" style={{background:c.color}}/>{c.fullName}
+          {st&&<span className="cswb-cnt">{(st.techMembers?.[cid]||[]).length}</span>}
+        </button>);})}
+    </div>
+  );
+}
+function TechEvTag({ev}){
+  const col=TECH_EV_COLORS[ev.type]||"#64748B";
+  return <span className="atag" style={{background:col+"18",color:col}}>{ev.icon} {ev.label}</span>;
+}
+function TechMonthNav({year,month,prevMonth,nextMonth}){
+  return(
+    <div className="mnav">
+      <button className="btn btn-g btn-sm" onClick={prevMonth}>←</button>
+      <span className="mnavt">{MONTHS[month]} {year}</span>
+      <button className="btn btn-g btn-sm" onClick={nextMonth}>→</button>
+    </div>
+  );
+}
+function findTechMember(st,id){
+  for(const cid of Object.keys(st.techMembers||{})){const m=(st.techMembers[cid]||[]).find(x=>x.id===id);if(m)return m;}
+  return null;
+}
+
+// ── Accueil technique ──
+function TechAccueilTab({user,st,verset,onGo}){
+  const today=dk(new Date());
+  const mine=[];
+  TECH_CHURCHES.forEach(cid=>{
+    Object.entries(st.techPlans?.[cid]||{}).forEach(([d,assign])=>{
+      if(d>=today&&assign&&assign[user.id]&&st.techValidated?.[cid]?.[d.slice(0,7)]){
+        const date=new Date(d+"T12:00:00");
+        const ev=(TECH_EVENTS[cid]||[]).find(e=>e.day===date.getDay());
+        mine.push({cid,d,date,ev,poste:assign[user.id]});
+      }
+    });
+  });
+  mine.sort((a,b)=>a.d.localeCompare(b.d));
+  const nm=new Date();nm.setMonth(nm.getMonth()+1);
+  const nextMk=techMonthKey(nm.getFullYear(),nm.getMonth());
+  const myTechChurches=memberChurches(user).filter(c=>TECH_CHURCHES.includes(c));
+  const notSent=myTechChurches.some(c=>!st.techDispoSent?.[user.id]?.[techKey(c,nextMk)]);
+  return(
+    <div>
+      <div className="ph"><div><div className="pt">Bonjour {user.name.split(" ")[0]} 👋</div><div className="ps">Service technique · {user.isRespTech?RESP_TECH:techPosts(user).join(" · ")||"Technique"}</div></div></div>
+      {verset&&<div className="card" style={{borderLeft:"4px solid #0891B2"}}><div style={{fontStyle:"italic",fontSize:14,lineHeight:1.6}}>« {verset.text} »</div><div style={{fontSize:12,color:"var(--txt3)",marginTop:6,fontWeight:700}}>{verset.ref}</div></div>}
+      {notSent&&<div className="ib amb" style={{cursor:"pointer"}} onClick={()=>onGo("tech-dispos")}>📅 Pensez à renseigner et envoyer vos disponibilités pour <strong>{MONTHS[nm.getMonth()]}</strong> →</div>}
+      <div className="card">
+        <div style={{fontWeight:700,marginBottom:12}}>⭐ Mes prochains services</div>
+        {mine.length===0
+          ?<div className="empty" style={{padding:"18px 0"}}><div style={{fontSize:28}}>🎛️</div><div style={{fontSize:12,marginTop:6}}>Aucun service planifié pour le moment</div></div>
+          :mine.slice(0,5).map(x=>(
+            <div key={x.cid+x.d} className="arow" style={{cursor:"default"}}>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:600,fontSize:13}}>{fmt(x.date)} · {CHURCHES[x.cid].name}</div>
+                {x.ev&&<TechEvTag ev={x.ev}/>}
+              </div>
+              <span style={{fontSize:12,fontWeight:700,color:"#0891B2"}}>{x.poste}</span>
+            </div>
+          ))}
+        {mine.length>5&&<button className="btn btn-g btn-sm" style={{marginTop:8}} onClick={()=>onGo("tech-mon-planning")}>Voir tout ({mine.length}) →</button>}
+      </div>
+    </div>
+  );
+}
+
+// ── Mon planning technique ──
+function TechMonPlanningTab({user,st}){
+  const today=dk(new Date());
+  const rows=[];
+  TECH_CHURCHES.forEach(cid=>{
+    Object.entries(st.techPlans?.[cid]||{}).forEach(([d,assign])=>{
+      if(d>=today&&assign&&assign[user.id]&&st.techValidated?.[cid]?.[d.slice(0,7)]){
+        const date=new Date(d+"T12:00:00");
+        const ev=(TECH_EVENTS[cid]||[]).find(e=>e.day===date.getDay());
+        const others=Object.entries(assign).filter(([id])=>id!==user.id).map(([id,poste])=>{const m=findTechMember(st,id);return m?`${m.name.split(" ")[0]} (${poste})`:null;}).filter(Boolean);
+        rows.push({cid,d,date,ev,poste:assign[user.id],others});
+      }
+    });
+  });
+  rows.sort((a,b)=>a.d.localeCompare(b.d));
+  return(
+    <div>
+      <div className="ph"><div><div className="pt">Mon planning technique</div><div className="ps">Services à venir (plannings validés)</div></div></div>
+      <div className="card">
+        {rows.length===0
+          ?<div className="empty"><div className="empty-icon">📭</div><div>Aucun service à venir</div><div style={{fontSize:12,marginTop:6}}>Le planning apparaît ici une fois validé par la responsable technique.</div></div>
+          :rows.map(x=>(
+            <div key={x.cid+x.d} style={{padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",borderLeft:`4px solid ${CHURCHES[x.cid].color}`}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <div><div style={{fontWeight:700,fontSize:14}}>{fmt(x.date)} · {CHURCHES[x.cid].name}</div>{x.ev&&<TechEvTag ev={x.ev}/>}</div>
+                <span style={{padding:"4px 12px",borderRadius:20,background:"#CFFAFE",color:"#155E75",fontSize:12,fontWeight:700}}>{x.poste}</span>
+              </div>
+              {x.others.length>0&&<div style={{fontSize:12,color:"var(--txt2)",marginTop:6}}>Avec : {x.others.join(", ")}</div>}
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Disponibilités technique (membre) ──
+function TechDispoTab({user,st,church,year,month,prevMonth,nextMonth,A,toast_}){
+  const ch=CHURCHES[church];
+  const dates=getTechDates(year,month,church);
+  const mk=techMonthKey(year,month);
+  const av=st.techAvail?.[user.id]||{};
+  const hasChecked=dates.some(x=>av[techKey(church,x.d)]);
+  const isSent=!!st.techDispoSent?.[user.id]?.[techKey(church,mk)];
+  return(
+    <div>
+      <div className="ph"><div><div className="pt">Mes disponibilités</div><div className="ps">{ch.fullName} · Service technique</div></div></div>
+      <TechMonthNav year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>
+      <div className="card">
+        <div className="ib ind">💡 Cochez les dates où vous êtes disponible pour <strong>{MONTHS[month]}</strong>, puis envoyez-les.</div>
+        {hasChecked&&!isSent&&<div className="ib" style={{background:"#FFFBEB",color:"#92400E"}}>📤 Pensez à cliquer sur <strong>« Envoyer mes disponibilités »</strong> — les cocher ne suffit pas.</div>}
+        {isSent&&<div className="ib" style={{background:"#ECFDF5",color:"#065F46"}}>✅ Disponibilités transmises pour {MONTHS[month]}.</div>}
+        {dates.length===0?<div className="empty"><div className="empty-icon">📭</div><div>Aucune date ce mois-ci</div></div>
+        :dates.map(({date,d,ev})=>{
+          const on=!!av[techKey(church,d)];
+          return(
+            <div className="arow" key={d+ev.type} onClick={()=>{A.toggleTechAvail(user.id,church,d);if(!on)toast_("Disponibilité enregistrée","📝");}}>
+              <div className={`chk${on?" on":""}`}>✓</div>
+              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag ev={ev}/></div>
+              {ev.micro&&<span style={{fontSize:10,color:"var(--txt3)"}}>🎤 passage de micro</span>}
+            </div>
+          );
+        })}
+        <div className="flex-end" style={{marginTop:18}}>
+          <button className="btn btn-p" disabled={!hasChecked||isSent} onClick={()=>{A.sendTechDispo(user.id,church,mk);toast_("Disponibilités transmises à la responsable technique !","🎉");}}>Envoyer mes disponibilités →</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal d'affectation technique ──
+function TechAssignModal({cid,d,date,ev,members,avail,assign,onSave,onClose}){
+  const ch=CHURCHES[cid];
+  const [sel,setSel]=useState({...(assign||{})});
+  const postesFor=m=>{const ps=techPosts(m).filter(p=>ev.micro||p!=="Passage de micro");return ps.length?ps:TECH_ROLES.filter(p=>ev.micro||p!=="Passage de micro");};
+  const toggle=m=>setSel(s=>{const n={...s};if(n[m.id])delete n[m.id];else{const ps=postesFor(m);const regieTaken=Object.values(n).includes(TECH_REGIE);n[m.id]=(!regieTaken&&ps.includes(TECH_REGIE))?TECH_REGIE:(ps.find(p=>p!==TECH_REGIE)||ps[0]);}return n;});
+  const isAv=m=>!!avail[m.id]?.[techKey(cid,d)];
+  const sorted=[...members].sort((a,b)=>(isAv(b)-isAv(a))||a.name.localeCompare(b.name));
+  const allPostes=TECH_ROLES.filter(p=>ev.micro||p!=="Passage de micro");
+  return(
+    <div className="modal">
+      <div className="modal-t">🎛️ Équipe technique</div>
+      <div className="modal-s">{fmt(date)} · {ev.icon} {ev.label} · {ch.fullName}</div>
+      {members.length===0&&<div className="ib amb">Aucun membre technique dans cette assemblée. Ajoutez-les dans « Équipe technique ».</div>}
+      {sorted.map(m=>{
+        const on=!!sel[m.id],av=isAv(m);
+        return(
+          <div key={m.id} className="assign-row" style={{opacity:av||on?1:.6}} onClick={()=>toggle(m)}>
+            <div className={`assign-chk${on?" on":""}`}>{on&&"✓"}</div>
+            <div className="mav" style={{background:av?ch.bg:"var(--sur2)",color:av?ch.color:"var(--txt3)",width:32,height:32,fontSize:12}}>{m.name.charAt(0)}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:600,fontSize:13}}>{m.name}</div>
+              <div style={{fontSize:11,color:av?"var(--grn)":"var(--txt3)"}}>{av?"✓ Disponible":"Non disponible / non renseigné"}</div>
+            </div>
+            {on&&(
+              <select className="inp" style={{width:"auto",padding:"4px 8px",fontSize:12}} value={sel[m.id]} onClick={e=>e.stopPropagation()} onChange={e=>{const v=e.target.value;setSel(s=>({...s,[m.id]:v}));}}>
+                {allPostes.map(p=><option key={p} value={p}>{p}</option>)}
+              </select>
+            )}
+          </div>
+        );
+      })}
+      {Object.keys(sel).length>0&&!Object.values(sel).includes(TECH_REGIE)&&<div className="ib amb" style={{marginTop:10}}>⚠️ Personne n'est encore à la <strong>Console / Régie</strong> pour cette date.</div>}
+      <div className="flex-end"><button className="btn btn-g" onClick={onClose}>Annuler</button><button className="btn btn-p" onClick={()=>onSave(sel)}>Confirmer ({Object.keys(sel).length}) →</button></div>
+    </div>
+  );
+}
+
+// ── Planification technique (responsable : édition · admin : consultation) ──
+function TechPlanningTab({st,canEdit,year,month,prevMonth,nextMonth,A}){
+  const [cid,setCid]=useState("creil");
+  const [modal,setModal]=useState(null);
+  const [showFlyer,setShowFlyer]=useState(false);
+  const ch=CHURCHES[cid];
+  const members=st.techMembers?.[cid]||[];
+  const plan=st.techPlans?.[cid]||{};
+  const dates=getTechDates(year,month,cid);
+  const mk=techMonthKey(year,month);
+  const validated=!!st.techValidated?.[cid]?.[mk];
+  const planned=dates.filter(x=>Object.keys(plan[x.d]||{}).length>0).length;
+  const sentCnt=members.filter(m=>st.techDispoSent?.[m.id]?.[techKey(cid,mk)]).length;
+  const nameOf=id=>{const m=members.find(x=>x.id===id)||findTechMember(st,id);return m?m.name.split(" ")[0]:"?";};
+  function share(){
+    const lines=[`🎛️ *Planning technique ${ch.name} — ${MONTHS[month]} ${year}*`,""];
+    dates.forEach(({date,d,ev})=>{const a=plan[d]||{};const ids=Object.keys(a);lines.push(`${ev.icon} ${date.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})} — ${ev.label} : ${ids.length?ids.map(id=>`${nameOf(id)} (${a[id]})`).join(", "):"—"}`);});
+    lines.push("","_JCLC — Jésus-Christ Le Chemin_");
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`,"_blank");
+  }
+  return(
+    <div>
+      {modal&&(
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <TechAssignModal cid={cid} d={modal.d} date={modal.date} ev={modal.ev} members={members} avail={st.techAvail||{}} assign={plan[modal.d]}
+            onSave={a=>{A.setTechAssign(cid,modal.d,a);setModal(null);}} onClose={()=>setModal(null)}/>
+        </div>
+      )}
+      <TechChurchSwitch value={cid} onChange={setCid} st={st}/>
+      <div className="ph">
+        <div><div className="pt">Technique · {ch.fullName}</div><div className="ps">{canEdit?"Cliquez sur « Assigner » pour composer l'équipe":"Consultation du planning technique"}</div></div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span className={`bdg ${validated?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{validated?"Validé":"Brouillon"}</span>
+          {canEdit&&(validated
+            ?<button className="btn btn-g btn-sm" onClick={()=>A.setTechValidated(cid,mk,false)}>Modifier</button>
+            :<button className="btn btn-grn" onClick={()=>A.setTechValidated(cid,mk,true)}>✓ Valider</button>)}
+          <button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button>
+          <button className="btn btn-g btn-sm" onClick={share}>📲 WhatsApp</button>
+          {showFlyer&&<TechFlyerModal cid={cid} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}
+        </div>
+      </div>
+      <div className="stats">
+        <div className="stat"><div className="statn">{members.length}</div><div className="statl">Membres tech</div></div>
+        <div className="stat"><div className="statn">{dates.length}</div><div className="statl">Dates ce mois</div></div>
+        <div className="stat"><div className="statn" style={{color:ch.color}}>{planned}</div><div className="statl">Planifiées</div></div>
+        <div className="stat"><div className="statn" style={{color:"var(--grn)"}}>{sentCnt}</div><div className="statl">Dispos reçues</div></div>
+      </div>
+      <TechMonthNav year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>
+      <div className="card">
+        {dates.length===0?<div className="empty"><div className="empty-icon">📭</div><div>Aucune date ce mois-ci</div></div>
+        :dates.map(({date,d,ev})=>{
+          const a=plan[d]||{},ids=Object.keys(a);
+          const availCnt=members.filter(m=>st.techAvail?.[m.id]?.[techKey(cid,d)]).length;
+          return(
+            <div key={d+ev.type} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",border:`1.5px solid ${ids.length?(TECH_EV_COLORS[ev.type]||ch.color):"transparent"}`,flexWrap:"wrap"}}>
+              <div style={{flex:"0 0 170px"}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag ev={ev}/></div>
+              <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap",minWidth:140}}>
+                {ids.length?ids.map(id=><span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:a[id]==="Passage de micro"?"#FEF3C7":"#CFFAFE",color:a[id]==="Passage de micro"?"#92400E":"#155E75"}}>{a[id]==="Passage de micro"?"🎤 ":""}{nameOf(id)} · {a[id]}</span>)
+                :<span style={{fontSize:12,color:"var(--txt3)"}}>Non planifié</span>}
+                {ids.length>0&&!ids.some(id=>a[id]===TECH_REGIE)&&<span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:"#FEE2E2",color:"#B91C1C"}}>⚠️ Console / Régie à pourvoir</span>}
+              </div>
+              <span style={{fontSize:11,color:availCnt?"var(--grn)":"var(--txt3)",fontWeight:600}}>{availCnt} dispo(s)</span>
+              {canEdit&&!validated&&<button className="btn btn-g btn-xs" onClick={()=>setModal({d,date,ev})}>Assigner</button>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Fiche membre technique ──
+function TechMemberModal({churchId,member,canSetResp,onSave,onClose}){
+  const ch=CHURCHES[churchId];
+  const [name,setName]=useState(member?.name||"");
+  const [posts,setPosts]=useState(member?techPosts(member):[]);
+  const [resp,setResp]=useState(member?isRespTechMember(member):false);
+  const [phone,setPhone]=useState(member?.phone||"");
+  const [pin,setPin]=useState(member?.pin||"0000");
+  const [churches,setChurches]=useState(member?.churches||(member?.church2?[member.church2]:[]));
+  const valid=name.trim()&&/^\d{4}$/.test(pin)&&posts.length>0;
+  const toggle=(arr,set,v)=>set(arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]);
+  function save(){
+    const louangeRoles=member?memberRoles(member).filter(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH):[];
+    const roles=[...louangeRoles,...posts,...(resp?[RESP_TECH]:[])];
+    const role=louangeRoles.length?(louangeRoles.includes(member.role)?member.role:louangeRoles[0]):posts[0];
+    onSave({...(member||{}),name:name.trim(),roles,role,phone,pin,church:member?.church||churchId,churches,church2:churches[0]||null});
+  }
+  return(
+    <div className="modal">
+      <div className="modal-t">{member?"Modifier le membre technique":"Ajouter un membre technique"}</div>
+      <div className="modal-s">{ch.fullName} · Service technique</div>
+      <div className="g2">
+        <div className="fld"><label>Nom *</label><input className="inp" placeholder="Prénom Nom" value={name} onChange={e=>setName(e.target.value)}/></div>
+        <div className="fld">
+          <label>Sert aussi à</label>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+            {TECH_CHURCHES.filter(c=>c!==(member?.church||churchId)).map(c=>(
+              <button key={c} type="button" className={"btn btn-sm "+(churches.includes(c)?"btn-p":"btn-g")} style={{fontSize:11,padding:"4px 10px"}} onClick={()=>toggle(churches,setChurches,c)}>{CHURCHES[c].fullName}</button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="fld">
+        <label>Postes * <span style={{fontWeight:400,color:"var(--txt3)",fontSize:11}}>(plusieurs possibles)</span></label>
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
+          {TECH_ROLES.map(r=>(
+            <button key={r} type="button" className={"btn btn-sm "+(posts.includes(r)?"btn-p":"btn-g")} style={{fontSize:11,padding:"4px 10px"}} onClick={()=>toggle(posts,setPosts,r)}>{r}</button>
+          ))}
+        </div>
+        {posts.length===0&&<div style={{fontSize:11,color:"#f87171",marginTop:4}}>Sélectionnez au moins un poste</div>}
+      </div>
+      {canSetResp&&(
+        <div className="arow" style={{marginBottom:14}} onClick={()=>setResp(v=>!v)}>
+          <div className={`chk${resp?" on":""}`}>✓</div>
+          <div><div style={{fontWeight:600,fontSize:13}}>{RESP_TECH}</div><div style={{fontSize:11,color:"var(--txt2)"}}>Planifie les équipes techniques et consulte le planning de la louange</div></div>
+        </div>
+      )}
+      <div className="g2">
+        <div className="fld"><label>Téléphone</label><input className="inp" placeholder="+33 6 …" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
+        <div className="fld"><label>Code PIN (4 chiffres) *</label><input className="inp" maxLength={4} placeholder="0000" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,4))}/></div>
+      </div>
+      <div className="ib ind">🎛️ Ce membre se connecte via le bouton <strong>« Connexion Technique »</strong> avec son prénom et ce code PIN.</div>
+      <div className="flex-end">
+        <button className="btn btn-g" onClick={onClose}>Annuler</button>
+        <button className="btn btn-p" disabled={!valid} onClick={save}>{member?"Sauvegarder →":"Ajouter →"}</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Équipe technique (liste des membres) ──
+function TechMembresTab({st,canSetResp,A}){
+  const [modal,setModal]=useState(null);
+  const [created,setCreated]=useState(null); // identifiants à transmettre au nouveau membre
+  return(
+    <div>
+      {created&&(
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setCreated(null)}>
+          <div className="modal">
+            <div className="modal-t">✅ {created.name} a été ajouté(e)</div>
+            <div className="modal-s">Identifiants de connexion à lui transmettre</div>
+            <div style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:16,marginBottom:14}}>
+              <div style={{fontSize:14,marginBottom:6}}>🎛️ Bouton : <strong>« Connexion Technique »</strong></div>
+              <div style={{fontSize:14,marginBottom:6}}>📱 Prénom à taper : <strong>{created.name}</strong></div>
+              <div style={{fontSize:14}}>🔢 Code PIN : <strong style={{fontFamily:"monospace",fontSize:20,letterSpacing:6,color:"var(--ind)"}}>{created.pin}</strong></div>
+            </div>
+            <div className="flex-end">
+              <button className="btn btn-g" onClick={()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Bienvenue dans l'équipe technique JCLC 🎛️\nConnecte-toi sur l'appli avec le bouton « Connexion Technique ».\nPrénom : ${created.name}\nCode PIN : ${created.pin}`)}`,"_blank")}>📲 Envoyer par WhatsApp</button>
+              <button className="btn btn-p" onClick={()=>setCreated(null)}>Compris ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modal&&(
+        <div className="overlay" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <TechMemberModal churchId={modal.cid} member={modal.m} canSetResp={canSetResp}
+            onSave={m=>{const isNew=!modal.m;A.saveTechMember(modal.cid,m,isNew);setModal(null);if(isNew)setCreated(m);}} onClose={()=>setModal(null)}/>
+        </div>
+      )}
+      <div className="ph"><div><div className="pt">Équipe technique</div><div className="ps">Créez et modifiez les fiches de votre équipe avec « + Ajouter »</div></div></div>
+      <div className="g2">
+        {TECH_CHURCHES.map(cid=>{const c=CHURCHES[cid];const list=st.techMembers?.[cid]||[];return(
+          <div key={cid} style={{background:c.bg,border:`1.5px solid ${c.color}`,borderRadius:16,padding:18}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+              <div style={{fontWeight:700,color:c.color,fontSize:15}}>{c.fullName}</div>
+              <button className="btn btn-sm" style={{background:c.color,color:"#fff"}} onClick={()=>setModal({cid,m:null})}>+ Ajouter</button>
+            </div>
+            {list.length===0
+              ?<div className="empty" style={{padding:"16px 0"}}><div style={{fontSize:30}}>🎛️</div><div style={{fontSize:12,marginTop:5}}>Aucun membre technique</div></div>
+              :<div className="scroll-list">{list.map(m=>(
+                <div className="mrow" key={m.id}>
+                  <div className="mav" style={{background:"#CFFAFE",color:"#155E75"}}>{m.name.charAt(0)}</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                      {m.name}
+                      {isRespTechMember(m)&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:"#155E75",color:"#fff",fontWeight:700}}>Responsable</span>}
+                      {isLouangeMember(m)&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:"#FEF3C7",color:"#92400E",fontWeight:700}}>Louange aussi</span>}
+                    </div>
+                    <div style={{fontSize:11,color:"var(--txt2)"}}>{techPosts(m).join(" · ")}</div>
+                    {m.phone&&<div style={{fontSize:11,color:"var(--txt3)"}}>📱 {m.phone}</div>}
+                  </div>
+                  <button className="btn btn-g btn-xs btn-ic" title="Modifier" onClick={()=>setModal({cid:m.church&&TECH_CHURCHES.includes(m.church)?m.church:cid,m})}>✏️</button>
+                  <button className="btn btn-d btn-xs btn-ic" title="Supprimer" onClick={()=>A.deleteTechMember(m)}>🗑</button>
+                </div>
+              ))}</div>}
+          </div>);})}
+      </div>
+    </div>
+  );
+}
+
+// ── Louange en consultation (pour la responsable technique) ──
+function LouangeConsultTab({st,year,month,prevMonth,nextMonth}){
+  const [cid,setCid]=useState("creil");
+  const ch=CHURCHES[cid];
+  const dates=getDates(year,month,cid);
+  const mk=techMonthKey(year,month);
+  const validated=st.validatedMonths?.[cid]?.[mk]===true;
+  const members=st.members[cid]||[];
+  return(
+    <div>
+      <div className="csw">
+        {Object.values(CHURCHES).map(c=>(
+          <button key={c.id} className={`cswb${cid===c.id?" "+c.id:""}`} onClick={()=>setCid(c.id)}>
+            <span className="cswb-dot" style={{background:c.color}}/>{c.fullName}<span style={{fontSize:11,opacity:.55,marginLeft:2}}>· {c.dayLabel}</span>
+          </button>
+        ))}
+      </div>
+      <div className="ph">
+        <div><div className="pt">Louange · {ch.fullName}</div><div className="ps">🔒 Consultation uniquement</div></div>
+        <span className={`bdg ${validated?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{validated?"Validé":"Brouillon"}</span>
+      </div>
+      <TechMonthNav year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>
+      <div className="card">
+        {!validated&&<div className="ib amb">⏳ Planning louange pas encore validé pour {MONTHS[month]} — il peut encore changer.</div>}
+        {dates.length===0?<div className="empty"><div className="empty-icon">📭</div><div>Aucune date ce mois-ci</div></div>
+        :dates.map(({date,type})=>{
+          const d=dk(date),ids=st.plans[cid]?.[d]||[],lead=st.planLead?.[cid]?.[d];
+          return(
+            <div key={d} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",flexWrap:"wrap"}}>
+              <div style={{flex:"0 0 160px"}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><span className={`atag ${getTypeCls(type)}`}>{getTypeLabel(type)}</span></div>
+              <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap"}}>
+                {ids.length?ids.map(id=>{const m=members.find(x=>x.id===id);return m?<span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:lead===id?"#EAB308":ch.bg,color:lead===id?"#fff":ch.color}}>{lead===id?"🎤 ":""}{m.name.split(" ")[0]} · {(m.role||"").split(" ")[0]}</span>:null;})
+                :<span style={{fontSize:12,color:"var(--txt3)"}}>Non planifié</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Onglet Technique côté admin : consultation du planning + gestion de l'équipe ──
+function AdminTechTab({st,year,month,prevMonth,nextMonth,A}){
+  const [view,setView]=useState("planning");
+  return(
+    <div>
+      <div style={{display:"flex",gap:6,marginBottom:16}}>
+        <button className={`btn btn-sm ${view==="planning"?"btn-p":"btn-g"}`} onClick={()=>setView("planning")}>📋 Planning technique</button>
+        <button className={`btn btn-sm ${view==="membres"?"btn-p":"btn-g"}`} onClick={()=>setView("membres")}>👥 Équipe technique</button>
+      </div>
+      {view==="planning"
+        ?<TechPlanningTab st={st} canEdit={false} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={A}/>
+        :<TechMembresTab st={st} canSetResp={true} A={A}/>}
+    </div>
+  );
+}
+
+// ── Flyer du planning technique (même style que le flyer louange) ──
+function TechFlyerModal({cid,st,month,year,onClose}){
+  const ch=CHURCHES[cid];
+  const fc=FLYER_COLORS[cid];
+  const plan=st.techPlans?.[cid]||{};
+  const flyerRef=useRef(null);
+  const monthLabel=new Date(year,month).toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  const monthLabelUp=monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
+  const dates=getTechDates(year,month,cid);
+  const nameOf=id=>{const m=findTechMember(st,id);return m?m.name.split(" ")[0]:"?";};
+  const dayName=day=>["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][day];
+  const sections=(TECH_EVENTS[cid]||[]).slice().sort((a,b)=>["culte","atelier","repet","priere"].indexOf(a.type)-["culte","atelier","repet","priere"].indexOf(b.type))
+    .map(ev=>({ev,items:dates.filter(x=>x.ev.type===ev.type)})).filter(s=>s.items.length);
+  const postIcon=p=>p==="Passage de micro"?"🎤":p===TECH_REGIE?"🎚️":"•";
+
+  function shareWhatsApp(){
+    const lines=[`🎛️ *Planning technique ${ch.name} — ${monthLabelUp}*`,""];
+    sections.forEach(({ev,items})=>{
+      lines.push(`${ev.icon} *${ev.label} (${dayName(ev.day)}s)*`);
+      items.forEach(({date,d})=>{const a=plan[d]||{};const ids=Object.keys(a);lines.push(`  📅 ${date.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})} : ${ids.length?ids.map(id=>`${nameOf(id)} (${a[id]})`).join(", "):"—"}`);});
+      lines.push("");
+    });
+    lines.push("_JCLC — Jésus-Christ Le Chemin_","_⚠️ Modifications possibles en cours de mois_");
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`,"_blank");
+  }
+
+  function DateCard({date,d}){
+    const a=plan[d]||{},ids=Object.keys(a).sort((x,y)=>(a[x]===TECH_REGIE?-1:0)-(a[y]===TECH_REGIE?-1:0));
+    const isEmpty=ids.length===0;
+    return(
+      <div style={{borderRadius:14,padding:"12px 14px",background:isEmpty?"rgba(0,0,0,.05)":fc.card,border:isEmpty?"2px dashed rgba(0,0,0,.12)":"none",
+        color:isEmpty?"#888":"white",boxShadow:isEmpty?"none":"0 4px 12px rgba(0,0,0,.18)",minWidth:130,flex:"1 1 130px"}}>
+        <div style={{fontFamily:"'Bebas Neue',serif",fontSize:"2rem",color:isEmpty?"#bbb":"#f5c842",lineHeight:1}}>{date.getDate()}</div>
+        <div style={{fontSize:"0.6rem",fontWeight:800,letterSpacing:"2px",textTransform:"uppercase",color:isEmpty?"#bbb":"rgba(255,255,255,.65)",marginBottom:8}}>{date.toLocaleDateString("fr-FR",{weekday:"short"})}</div>
+        {isEmpty
+          ?<div style={{fontSize:"0.72rem",fontStyle:"italic",color:"#aaa"}}>À assigner</div>
+          :ids.map(id=>(
+            <div key={id} style={{fontSize:"0.75rem",fontWeight:700,paddingLeft:4,color:a[id]===TECH_REGIE?"#f5c842":"rgba(255,255,255,.88)"}}>
+              {postIcon(a[id])} {nameOf(id)} <span style={{fontSize:"0.58rem",fontWeight:600,opacity:.75}}>· {a[id]===TECH_REGIE?"Régie":a[id]==="Passage de micro"?"Micro":a[id]}</span>
+            </div>
+          ))}
+      </div>
+    );
+  }
+
+  return(
+    <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="modal" style={{width:680,maxWidth:"96vw",padding:0,overflow:"hidden",borderRadius:20}}>
+        <div style={{display:"flex",gap:8,padding:"14px 16px 0",background:"var(--sur)"}}>
+          <button className="btn btn-p" style={{flex:1}} onClick={shareWhatsApp}>📱 Partager sur WhatsApp</button>
+          <button className="btn btn-g" style={{flex:1}} onClick={async()=>{
+            try{
+              const el=flyerRef.current;if(!el)return;
+              const{default:h2c}=await import("https://esm.sh/html2canvas@1.4.1");
+              const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:"white"});
+              const link=document.createElement("a");
+              link.download=`planning-technique-${cid}-${monthLabelUp.replace(/ /g,"-")}.jpg`;
+              link.href=canvas.toDataURL("image/jpeg",0.92);link.click();
+            }catch(e){alert("Erreur export: "+e.message);}
+          }}>📥 Télécharger JPEG</button>
+          <button className="btn btn-g btn-ic" onClick={onClose}>✕</button>
+        </div>
+
+        <div ref={flyerRef} style={{fontFamily:"'Plus Jakarta Sans',sans-serif",background:"white"}}>
+          <div style={{background:fc.headerGrad,padding:"24px 28px 18px",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:"50%",background:"rgba(255,255,255,.07)",pointerEvents:"none"}}/>
+            <div style={{position:"absolute",bottom:-60,left:"35%",width:260,height:260,borderRadius:"50%",background:"rgba(255,255,255,.04)",pointerEvents:"none"}}/>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative",zIndex:1}}>
+              <div style={{fontSize:"0.75rem",fontWeight:700,letterSpacing:"2px",textTransform:"uppercase",color:"rgba(255,255,255,.8)"}}>Assemblée Jésus-Christ Le Chemin</div>
+              <img src={LOGO_B64} alt="JCLC" style={{width:64,height:64,objectFit:"contain",filter:"drop-shadow(0 2px 8px rgba(255,170,0,.5))"}}/>
+            </div>
+            <div style={{position:"relative",zIndex:1,marginTop:8}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3.8rem",color:"white",lineHeight:1,textShadow:"3px 3px 0 rgba(0,0,0,.2)"}}>Planning</div>
+              <div style={{fontSize:"1rem",fontWeight:800,color:"rgba(255,255,255,.9)",letterSpacing:"1px",textTransform:"uppercase",marginTop:-4}}>🎛️ Service Technique</div>
+              <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{display:"inline-block",background:"#f5c842",color:"#111",fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.6rem",letterSpacing:"4px",padding:"2px 16px",borderRadius:7}}>{monthLabelUp}</span>
+                <span style={{display:"inline-block",background:fc.badge,color:"white",fontSize:"0.7rem",fontWeight:800,letterSpacing:"3px",textTransform:"uppercase",padding:"4px 14px",borderRadius:50,border:"1.5px solid rgba(255,255,255,.3)"}}>{ch.name}</span>
+              </div>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap",position:"relative",zIndex:1}}>
+              <div style={{background:"rgba(0,0,0,.22)",borderRadius:20,padding:"4px 12px",fontSize:"0.68rem",fontWeight:700,color:"white"}}>⚠️ Modifications possibles en cours de mois</div>
+              <div style={{background:"rgba(0,0,0,.22)",borderRadius:20,padding:"4px 12px",fontSize:"0.68rem",fontWeight:700,color:"white"}}>🎚️ Console / Régie · 🎤 Passage de micro</div>
+            </div>
+          </div>
+
+          <div style={{padding:"20px 22px 24px",background:fc.bodyBg}}>
+            {sections.map(({ev,items},i)=>(
+              <div key={ev.type} style={{marginBottom:i<sections.length-1?20:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.2rem",letterSpacing:"2px",color:fc.sectionColor,marginBottom:10,paddingBottom:7,borderBottom:"2px solid rgba(0,0,0,.1)"}}>
+                  <div style={{width:28,height:28,borderRadius:7,background:fc.iconBg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.9rem",color:"white"}}>{ev.icon}</div>
+                  {ev.label} — {dayName(ev.day)}s
+                </div>
+                <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                  {items.map(x=><DateCard key={x.d} date={x.date} d={x.d}/>)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{background:fc.footer,padding:"10px 20px",textAlign:"center",fontSize:"0.65rem",fontWeight:700,letterSpacing:"1px",color:"rgba(255,255,255,.7)"}}>
+            Assemblée Jésus-Christ Le Chemin — {ch.name} · Service technique &nbsp;|&nbsp; ⚠️ Modifications possibles
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
