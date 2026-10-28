@@ -50,8 +50,35 @@ const CATEGORIES_CHANT = ["Adoration","Louange","Sainte-Cène","Dîme & Offrande
 
 const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 const DAYS   = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-const NOTES  = ["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
-const NOTES_M= ["Dom","Do#m","Rém","Ré#m","Mim","Fam","Fa#m","Solm","Sol#m","Lam","La#m","Sim"];
+// Orthographe des tonalités : bémols (Réb, Mib, Lab, Sib) sauf Fa#.
+// Mineurs : Do#m, Fa#m, Sol#m restent en dièse ; Mibm et Sibm en bémol.
+const NOTES  = ["Do","Réb","Ré","Mib","Mi","Fa","Fa#","Sol","Lab","La","Sib","Si"];
+const NOTES_M= ["Dom","Do#m","Rém","Mibm","Mim","Fam","Fa#m","Solm","Sol#m","Lam","Sibm","Sim"];
+// Réécrit les dièses d'une ligne d'accords (ou d'une tonalité) selon cette orthographe.
+const RESPELL_SHARP={"Do":"Réb","DO":"RÉB","Ré":"Mib","Re":"Mib","RÉ":"MIB","RE":"MIB","Sol":"Lab","SOL":"LAB","La":"Sib","LA":"SIB","C":"Db","D":"Eb","G":"Ab","A":"Bb"};
+const KEEP_SHARP_MINOR={"Do":1,"DO":1,"Sol":1,"SOL":1,"C":1,"G":1};
+const RESPELL_FLAT_MINOR={"Réb":"Do#","RÉB":"DO#","Lab":"Sol#","LAB":"SOL#","Db":"C#","Ab":"G#"};
+const RESPELL_FLAT={"Solb":"Fa#","SOLB":"FA#","Gb":"F#"};
+function respellLine(line){
+  if(!line||typeof line!=="string")return line;
+  let out=line.replace(/(^|[^A-Za-zÀ-ÿ#])(DO|RÉ|RE|SOL|LA|Do|Ré|Re|Sol|La|C|D|G|A)#(MAJ|maj|Maj|M|m)?/g,(m,pre,root,suf)=>{
+    const minor=suf==="m"||suf==="M";
+    if(minor&&KEEP_SHARP_MINOR[root])return m;
+    return pre+RESPELL_SHARP[root]+(suf||"");
+  });
+  out=out.replace(/(^|[^A-Za-zÀ-ÿ#])(RÉB|LAB|Réb|Lab|Db|Ab)(m|M)(?!aj|AJ)/g,(m,pre,root,suf)=>pre+RESPELL_FLAT_MINOR[root]+suf);
+  out=out.replace(/(^|[^A-Za-zÀ-ÿ#])(SOLB|Solb|Gb)(?![a-z])/g,(m,pre,root)=>pre+RESPELL_FLAT[root]);
+  return out;
+}
+function prefKey(k){return k?respellLine(k):k;}
+function normalizeSong(s){
+  if(!s||typeof s!=="object")return s;
+  return{...s,key:prefKey(s.key),sections:Array.isArray(s.sections)?s.sections.map(sec=>({...sec,lines:Array.isArray(sec.lines)?sec.lines.map(l=>l&&l.k==="chord"?{...l,t:respellLine(l.t)}:l):sec.lines})):s.sections};
+}
+function normalizeItems(items){
+  if(!Array.isArray(items))return items;
+  return items.map(it=>it&&typeof it==="object"?{...it,...(it.key?{key:prefKey(it.key)}:{}),...(it.dispKey?{dispKey:prefKey(it.dispKey)}:{})}:it);
+}
 const NOTE_MAP={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#"};
 
 
@@ -1018,11 +1045,13 @@ const SONGS0 = [
 
 // ══ Utilitaires ══
 // ══ ChordPro Engine ══
-const FR_NOTES=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
-const FR_MINOR={"Lam":"La","Rém":"Ré","Rem":"Ré","Mim":"Mi","Fam":"Fa","Fa#m":"Fa#","Solm":"Sol","Dom":"Do","Sim":"Si","Do#m":"Do#"};
-const EN_NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-const FR_ALT={"Réb":"Do#","Mib":"Ré#","Solb":"Fa#","Lab":"Sol#","Sib":"La#","Dob":"Si","Re":"Ré","Re#":"Ré#","Reb":"Do#"};
-const EN_ALT={"Db":"C#","Eb":"D#","Gb":"F#","Ab":"G#","Bb":"A#","Cb":"B"};
+const FR_NOTES=["Do","Réb","Ré","Mib","Mi","Fa","Fa#","Sol","Lab","La","Sib","Si"];
+const FR_MIN_ROOTS=["Do","Do#","Ré","Mib","Mi","Fa","Fa#","Sol","Sol#","La","Sib","Si"];
+const FR_MINOR={"Lam":"La","Rém":"Ré","Rem":"Ré","Mim":"Mi","Fam":"Fa","Fa#m":"Fa#","Solm":"Sol","Dom":"Do","Sim":"Si","Do#m":"Réb"};
+const EN_NOTES=["C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
+const EN_MIN_ROOTS=["C","C#","D","Eb","E","F","F#","G","G#","A","Bb","B"];
+const FR_ALT={"Do#":"Réb","Ré#":"Mib","Re#":"Mib","Reb":"Réb","Sol#":"Lab","La#":"Sib","Solb":"Fa#","Dob":"Si","Re":"Ré","Mi#":"Fa","Si#":"Do","Fab":"Mi"};
+const EN_ALT={"C#":"Db","D#":"Eb","G#":"Ab","A#":"Bb","Gb":"F#","Cb":"B","E#":"F","B#":"C","Fb":"E"};
 
 function noteToIdx(note){
   // Normaliser Re->Ré avant tout traitement
@@ -1052,7 +1081,7 @@ function transposeChord(chord,st,targetLang){
   // Normaliser Re->Ré sur la racine extraite
   if(root==="Re")root="Ré";
   if(root==="Re#")root="Ré#";
-  if(root==="Reb")root="Do#";
+  if(root==="Reb")root="Réb";
   let bass="";
   if(rest.startsWith("/")){
     const bm=rest.slice(1).match(frPat)||rest.slice(1).match(enPat);
@@ -1064,12 +1093,13 @@ function transposeChord(chord,st,targetLang){
   if(!r)return chord;
   const newIdx=(r.idx+12+st)%12;
   const outLang=targetLang||lang;
-  const newRoot=(outLang==="en"?EN_NOTES:FR_NOTES)[newIdx];
+  const isMinor=/^m(?!aj)/.test(suffix);
+  const newRoot=(outLang==="en"?(isMinor?EN_MIN_ROOTS:EN_NOTES):(isMinor?FR_MIN_ROOTS:FR_NOTES))[newIdx];
   return newRoot+suffix+bass+rest;
 }
 
 function transposeLine(line,st,lang){
-  if(st===0&&!lang)return line;
+  if(st===0&&!lang)return respellLine(line);
   const pre=line.replace(/\bRe(?=[mb#\s]|$)/g,"Ré").replace(/\bre(?=[mb#\s]|$)/g,"Ré");
   const normalized=pre.replace(/\b(DO|RE|RÉ|MI|FA|SOL|LA|SI)(B|#)?(M(?:AJ)?7?|7|SUS[24]?|DIM|AUG|M)?\b/g,m=>{
     const map={"DO":"Do","RE":"Ré","RÉ":"Ré","MI":"Mi","FA":"Fa","SOL":"Sol","LA":"La","SI":"Si"};
@@ -1581,7 +1611,7 @@ const INIT = {
   techDispoSent:{},                         // { memberId: { "cid|YYYY-MM": true } }
   techValidated:{ creil:{}, lognes:{} },    // { cid: { "YYYY-MM": true } }
   notifLog:   [],
-  songs:      SONGS0,
+  songs:      SONGS0.map(normalizeSong),
   programs:   [],
   repetitions: [], // listes de répétition
   notifSeenMonth: null,
@@ -1866,7 +1896,7 @@ export default function App() {
         const n=JSON.parse(JSON.stringify(s));
         // members can belong to two churches via church2 field
         splitMembers(mbrs,n);
-        if(sngs.length)n.songs=sngs;
+        if(sngs.length)n.songs=sngs.map(normalizeSong);
         n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
         plans.forEach(p=>{
           if(handleExtraRow(p,n)){}
@@ -1882,7 +1912,7 @@ export default function App() {
           if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
           let pages=p.pages||1;
           if(typeof pages==="string"){try{pages=JSON.parse(pages);}catch{pages=1;}}
-          return{...p,items,pages};
+          return{...p,items:normalizeItems(items),pages};
         });
         return n;
       });
@@ -1910,7 +1940,7 @@ export default function App() {
         setSt(s=>{
           const n=JSON.parse(JSON.stringify(s));
           splitMembers(mbrs,n);
-          if(sngs.length)n.songs=sngs;
+          if(sngs.length)n.songs=sngs.map(normalizeSong);
           n.plans=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));
           n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
           // Garder planStatus existant, juste mettre à jour depuis Supabase
@@ -1929,7 +1959,7 @@ export default function App() {
             if(typeof items==="string"){try{items=JSON.parse(items);}catch{items=[];}}
             let pages=p.pages||1;
             if(typeof pages==="string"){try{pages=JSON.parse(pages);}catch{pages=1;}}
-            return{...p,items,pages};
+            return{...p,items:normalizeItems(items),pages};
           });
           return n;
         });
@@ -2943,13 +2973,13 @@ function MusicienTab({user,st,church}){
   }
   const scrollRef=useRef();
   const scrollTimer=useRef();
-  const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
-  const NOTES_EN=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const NOTES_FR=FR_NOTES;
+  const NOTES_EN=EN_NOTES;
   const CUR_NOTES=notation==="fr"?NOTES_FR:NOTES_EN;
   // Clé de stockage scopée par programme + chant, pour que la tonalité choisie
   // pour un chant dans un programme ne "fuite" pas vers ce même chant dans un autre programme.
   function skey(sid){return `${activeProg?.id||"noprog"}_${sid}`;}
-  function getKey(sid,orig){const k=songKeys[skey(sid)]||(orig||"Do");return k.replace(/^Re(?=#|b|$)/,"Ré");}
+  function getKey(sid,orig){const k=songKeys[skey(sid)]||(orig||"Do");return prefKey(k.replace(/^Re(?=#|b|$)/,"Ré"));}
   function changeKey(sid,orig,delta){
     const cur=getKey(sid,orig);
     const ci=CUR_NOTES.indexOf(cur)!==-1?CUR_NOTES.indexOf(cur):NOTES_FR.indexOf(cur);
@@ -3102,7 +3132,7 @@ function MusicienTab({user,st,church}){
             const dispKey=getKey(sid,origKey);
             const st_=semit(origKey,dispKey);
             const normOrig=origKey.replace(/m$/,"").replace(/^Re$/,"Ré");
-            const semitones=((NOTES_FR.indexOf(dispKey)-NOTES_FR.indexOf(normOrig))+12)%12;
+            const semitones=(st_+12)%12;
             const hasSections=songData.sections&&songData.sections.length>0;
             return(
               <div key={sid} className="card" style={{margin:"0 16px 12px",borderLeft:`4px solid ${ch.color}`}}>
@@ -3771,7 +3801,7 @@ function RepetitionTab({st,church,isAdmin,user}){
       setLists(reps.map(p=>{
         let songs=p.items||[];
         if(typeof songs==="string"){try{songs=JSON.parse(songs);}catch{songs=[];}}
-        return{...p,songs};
+        return{...p,songs:normalizeItems(songs)};
       }));
       setLoaded(true);
     });
@@ -3886,7 +3916,7 @@ function RepetitionTab({st,church,isAdmin,user}){
 
   const activeList=selIdx!==null?lists[selIdx]:null;
   const filtered=st.songs.filter(s=>s.title.toLowerCase().includes(songSearch.toLowerCase())).slice(0,8);
-  const NOTES_FR=["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
+  const NOTES_FR=FR_NOTES;
 
   if(presentMode&&activeList){
     const song=activeList.songs[presentIdx];
@@ -4118,7 +4148,7 @@ function PasteursTab({st,user}){
         defaults.forEach(l=>sbUpsert("programs",{id:l.id,title:l.title,church:"commun",date:l.date,pages:1,status:"pasteur",items:[],notes:""}));
         setLists(defaults);
       }else{
-        setLists(pasts.map(p=>({...p,songs:p.items||[]})));
+        setLists(pasts.map(p=>({...p,songs:normalizeItems(p.items||[])})));
       }
       setLoaded(true);
     });
@@ -4679,7 +4709,7 @@ function SelectServiceModal({cid,d,date,members,assigned,selected,leadId,onSave,
 
 // ── SONG VIEW MODAL ──
 // Map note names to frequencies (C4 scale)
-const NOTE_FREQ={"Do":261.63,"Do#":277.18,"Ré":293.66,"Ré#":311.13,"Mi":329.63,"Fa":349.23,"Fa#":369.99,"Sol":392.00,"Sol#":415.30,"La":440.00,"La#":466.16,"Si":493.88,"Lam":440.00,"Rém":293.66,"Mim":329.63,"Fa#m":369.99,"Solm":392.00,"Do#m":277.18};
+const NOTE_FREQ={"Do":261.63,"Do#":277.18,"Ré":293.66,"Ré#":311.13,"Mi":329.63,"Fa":349.23,"Fa#":369.99,"Sol":392.00,"Sol#":415.30,"La":440.00,"La#":466.16,"Si":493.88,"Réb":277.18,"Mib":311.13,"Lab":415.30,"Sib":466.16,"Solb":369.99,"Lam":440.00,"Rém":293.66,"Mim":329.63,"Fa#m":369.99,"Solm":392.00,"Do#m":277.18};
 function playNote(noteName){
   try{
     const freq=NOTE_FREQ[noteName]||NOTE_FREQ[noteName.replace("m","")];
@@ -4726,7 +4756,7 @@ function ChordLineEditor({line,si,li,st_,notation,song,onSave}){
 }
 
 function SongViewModal({song,onSave,onClose}){
-  const [curKey,setCurKey]=useState(song.key||"Do");
+  const [curKey,setCurKey]=useState(prefKey(song.key||"Do"));
   const [notation,setNotation]=useState("fr");
   const [presentMode,setPresentMode]=useState(false);
   const [fontSize,setFontSize]=useState(14);
@@ -4838,7 +4868,7 @@ function SongViewModal({song,onSave,onClose}){
 // ── SONG FORM MODAL ──
 function SongFormModal({song,onSave,onClose}){
   const [title,setTitle]=useState(song?.title||"");
-  const [key,setKey]=useState(song?.key||"Do");
+  const [key,setKey]=useState(prefKey(song?.key||"Do"));
   const [tempo,setTempo]=useState(song?.tempo||"");
   const [categorie,setCategorie]=useState(song?.categorie||"");
   const [author,setAuthor]=useState(song?.author||"");
@@ -5305,6 +5335,7 @@ function ProgramViewModal({program,songs,onClose}){
 const PIANO_NOTES = ["Do","Do#","Ré","Ré#","Mi","Fa","Fa#","Sol","Sol#","La","La#","Si"];
 const PIANO_NOTE_TO_SEMITONE = {};
 PIANO_NOTES.forEach((n,i)=>PIANO_NOTE_TO_SEMITONE[n]=i);
+Object.assign(PIANO_NOTE_TO_SEMITONE,{"Réb":1,"Mib":3,"Solb":6,"Lab":8,"Sib":10});
 
 const PIANO_QUALITY_INTERVALS = {
   "":[0,4,7], "m":[0,3,7], "7":[0,4,7,10], "maj7":[0,4,7,11],
