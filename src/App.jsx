@@ -2998,9 +2998,9 @@ function MusicienTab({user,st,church}){
     if(!item){setViewIdx(null);return null;}
     const sid=item.songId||item.id||("item-"+viewIdx);
     const songData=getSong(sid,item.title||item.songTitle);
-    const origKey=item.key||songData.key||"Do";
+    const srcKey=songData.key||"Do";const origKey=item.key||srcKey;
     const dispKey=getKey(sid,origKey);
-    const st_=semit(origKey,dispKey);
+    const st_=semit(srcKey,dispKey);
     return(
       <div style={{position:"fixed",inset:0,background:"#0f172a",color:"#f1f5f9",zIndex:9999,display:"flex",flexDirection:"column",overflow:"hidden"}}>
         {/* Barre du haut */}
@@ -3128,9 +3128,9 @@ function MusicienTab({user,st,church}){
           {items.map((item,idx)=>{
             const sid=item.songId||item.id||("item-"+idx);
             const songData=getSong(sid,item.title||item.songTitle);
-            const origKey=item.key||songData.key||"Do";
+            const srcKey=songData.key||"Do";const origKey=item.key||srcKey;
             const dispKey=getKey(sid,origKey);
-            const st_=semit(origKey,dispKey);
+            const st_=semit(srcKey,dispKey);
             const normOrig=origKey.replace(/m$/,"").replace(/^Re$/,"Ré");
             const semitones=(st_+12)%12;
             const hasSections=songData.sections&&songData.sections.length>0;
