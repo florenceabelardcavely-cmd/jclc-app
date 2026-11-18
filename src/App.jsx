@@ -46,6 +46,39 @@ const TECH_REGIE = "Console / Régie"; // poste à pourvoir à chaque date
 const RESP_TECH  = "Responsable technique";
 const TECH_EV_COLORS = { culte:"#4F46E5", atelier:"#0891B2", repet:"#D97706", priere:"#DC2626" };
 
+// ── GROUPE COMMUNICATION / AUDIOVISUEL ──
+const COM_CHURCHES = ["creil"];
+const COM_EVENTS = {
+  creil: [ {day:0,type:"culte",  label:"Culte du dimanche", icon:"🙏"},
+           {day:3,type:"atelier",label:"Atelier biblique",  icon:"📖"} ],
+};
+const COM_ROLES    = ["Projection","Photo","Vidéo / Caméra","Réseaux sociaux / Live","Annonces"];
+const COM_REQUIRED = "Projection"; // poste à pourvoir à chaque date
+const RESP_COM     = "Responsable communication";
+
+// ── Configuration commune des équipes de service (technique, communication…) ──
+// Les données Supabase utilisent l'id de l'équipe comme préfixe : "tech_…", "com_…"
+// et l'état local les clés <id>Members, <id>Plans, <id>Avail, <id>DispoSent, <id>Validated.
+const TEAMS = {
+  tech:{ id:"tech", churches:TECH_CHURCHES, events:TECH_EVENTS, roles:TECH_ROLES, required:TECH_REGIE, resp:RESP_TECH, evColors:TECH_EV_COLORS,
+    icon:"🎛️", label:"Technique", service:"Service technique", ofTeam:"de la technique", teamName:"Équipe technique", planTitle:"Planning technique",
+    respShort:"Resp. technique", respTitle:"la responsable technique", respDesc:"Planifie les équipes techniques et consulte le planning de la louange",
+    accent:"#0891B2", chipBg:"#CFFAFE", chipFg:"#155E75", pill:"pill-tech",
+    login:{bg:"rgba(8,145,178,.18)",badgeBg:"rgba(8,145,178,.25)",border:"rgba(103,232,249,.45)",fg:"#67E8F9",label:"Connexion Technique",question:"Vous êtes de la technique ?"},
+    postIcons:{"Console / Régie":"🎚️","Passage de micro":"🎤"}, postShort:{"Console / Régie":"Régie","Passage de micro":"Micro"},
+    postOnlyIf:{"Passage de micro":"micro"}, postHint:{"Passage de micro":"🎤 passage de micro"},
+    postChip:{"Passage de micro":{bg:"#FEF3C7",fg:"#92400E"}} },
+  com:{ id:"com", churches:COM_CHURCHES, events:COM_EVENTS, roles:COM_ROLES, required:COM_REQUIRED, resp:RESP_COM, evColors:{culte:"#DB2777",atelier:"#7C3AED"},
+    icon:"📸", label:"Communication", service:"Communication / Audiovisuel", ofTeam:"de la communication", teamName:"Équipe communication", planTitle:"Planning communication",
+    respShort:"Resp. communication", respTitle:"la responsable communication", respDesc:"Planifie l'équipe communication / audiovisuel et consulte le planning de la louange",
+    accent:"#DB2777", chipBg:"#FCE7F3", chipFg:"#9D174D", pill:"pill-com",
+    login:{bg:"rgba(219,39,119,.18)",badgeBg:"rgba(219,39,119,.25)",border:"rgba(249,168,212,.45)",fg:"#F9A8D4",label:"Connexion Communication",question:"Vous êtes de la communication ?"},
+    postIcons:{"Projection":"🖥️","Photo":"📷","Vidéo / Caméra":"🎥","Réseaux sociaux / Live":"📱","Annonces":"📢"}, postShort:{"Vidéo / Caméra":"Vidéo","Réseaux sociaux / Live":"Réseaux"},
+    postOnlyIf:{}, postHint:{}, postChip:{} },
+};
+const TEAM_IDS = Object.keys(TEAMS);
+const ALL_TEAM_ROLES = TEAM_IDS.flatMap(id=>[...TEAMS[id].roles,TEAMS[id].resp]);
+
 const CATEGORIES_CHANT = ["Adoration","Louange","Sainte-Cène","Dîme & Offrandes"];
 
 const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
@@ -1253,12 +1286,14 @@ function memberBelongsTo(m,cid){
 }
 // Équipe(s) d'un membre selon ses rôles : un même membre peut être louange ET technique
 function memberRoles(m){return (m.roles&&m.roles.length?m.roles:[m.role]).filter(Boolean);}
-function isTechMember(m){return memberRoles(m).some(r=>TECH_ROLES.includes(r)||r===RESP_TECH);}
-function isLouangeMember(m){const rs=memberRoles(m);return rs.length===0||rs.some(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH);}
-function isRespTechMember(m){return memberRoles(m).includes(RESP_TECH);}
-function techPosts(m){return memberRoles(m).filter(r=>TECH_ROLES.includes(r));}
-function getTechDates(year,month,cid){
-  const evs=TECH_EVENTS[cid]||[],out=[];
+function isTeamMember(m,T){return memberRoles(m).some(r=>T.roles.includes(r)||r===T.resp);}
+function isLouangeMember(m){const rs=memberRoles(m);return rs.length===0||rs.some(r=>!ALL_TEAM_ROLES.includes(r));}
+function isRespTeamMember(m,T){return memberRoles(m).includes(T.resp);}
+function teamPosts(m,T){return memberRoles(m).filter(r=>T.roles.includes(r));}
+// Autres équipes (que T) auxquelles appartient le membre — pour les badges « … aussi »
+function otherTeamLabels(m,T){const out=[];if(isLouangeMember(m))out.push("Louange");TEAM_IDS.forEach(id=>{if(id!==T.id&&isTeamMember(m,TEAMS[id]))out.push(TEAMS[id].label);});return out;}
+function getTeamDates(T,year,month,cid){
+  const evs=T.events[cid]||[],out=[];
   const d=new Date(year,month,1);
   while(d.getMonth()===month){
     const dow=d.getDay();
@@ -1272,28 +1307,30 @@ function techKey(cid,d){return cid+"|"+d;}
 // Répartit les membres Supabase entre louange et technique, par assemblée
 function splitMembers(mbrs,n){
   const mapM=m=>({...m,canEditLib:m.can_edit_lib||false,canEditProg:m.can_edit_prog||false,roles:m.roles||[m.role]});
-  if(!n.techMembers)n.techMembers={};
+  TEAM_IDS.forEach(id=>{if(!n[id+"Members"])n[id+"Members"]={};});
   Object.keys(CHURCHES).forEach(cid=>{
     const cM=mbrs.filter(m=>memberBelongsTo(m,cid)).map(mapM);
     if(cM.length)n.members[cid]=cM.filter(isLouangeMember);
-    n.techMembers[cid]=cM.filter(isTechMember);
+    TEAM_IDS.forEach(id=>{n[id+"Members"][cid]=cM.filter(m=>isTeamMember(m,TEAMS[id]));});
   });
 }
 // Lignes "plannings" propres à la technique (et drapeau de migration) — ignorées par la louange
 function handleExtraRow(p,n){
   if(p.member_id==="migration")return true;
-  if(!n.techPlans)n.techPlans={};if(!n.techAvail)n.techAvail={};if(!n.techDispoSent)n.techDispoSent={};if(!n.techValidated)n.techValidated={};
-  if(p.member_id==="tech"&&p.church&&p.date){try{const a=JSON.parse(p.availability||"{}");if(!n.techPlans[p.church])n.techPlans[p.church]={};n.techPlans[p.church][p.date]=a&&typeof a==="object"?a:{};}catch{}return true;}
-  if(p.date==="tech_availability"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techAvail[p.member_id]=a;}catch{}return true;}
-  if(p.date==="tech_dispo_sent"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techDispoSent[p.member_id]=a;}catch{}return true;}
-  if(p.date==="tech_validated"&&p.church){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n.techValidated[p.church]=a;}catch{}return true;}
+  TEAM_IDS.forEach(P=>["Plans","Avail","DispoSent","Validated"].forEach(k=>{if(!n[P+k])n[P+k]={};}));
+  for(const P of TEAM_IDS){
+    if(p.member_id===P&&p.church&&p.date){try{const a=JSON.parse(p.availability||"{}");if(!n[P+"Plans"][p.church])n[P+"Plans"][p.church]={};n[P+"Plans"][p.church][p.date]=a&&typeof a==="object"?a:{};}catch{}return true;}
+    if(p.date===P+"_availability"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n[P+"Avail"][p.member_id]=a;}catch{}return true;}
+    if(p.date===P+"_dispo_sent"&&p.member_id){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n[P+"DispoSent"][p.member_id]=a;}catch{}return true;}
+    if(p.date===P+"_validated"&&p.church){try{const a=JSON.parse(p.availability||"{}");if(a&&typeof a==="object")n[P+"Validated"][p.church]=a;}catch{}return true;}
+  }
   return false;
 }
 function buildUserData(m,team){
   const isMusicien=["Directeur Musical (DM)","Pianiste","Batteur","Bassiste","Guitare sèche","Guitare électrique","Congas"].includes(m.role);
   const cs=memberChurches(m);
   return {id:m.id,name:m.name,role:m.role,church:m.church,church2:cs[1]||null,churches:cs.slice(1),canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false,roles:m.roles||[m.role],isMusicien,
-    team:team==="tech"?"tech":"louange",isRespTech:team==="tech"&&isRespTechMember(m)};
+    team:TEAMS[team]?team:"louange",isRespTech:!!TEAMS[team]&&isRespTeamMember(m,TEAMS[team])};
 }
 function dk(d){const mm=String(d.getMonth()+1).padStart(2,"0"),dd=String(d.getDate()).padStart(2,"0");return `${d.getFullYear()}-${mm}-${dd}`;}
 function fmt(d){return `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
@@ -1416,6 +1453,7 @@ input,select,textarea{font-family:inherit;}
 .pill-bib{background:var(--grn-bg);color:var(--grn);}
 .pill-member{background:var(--sur2);color:var(--txt2);}
 .pill-tech{background:#CFFAFE;color:#155E75;}
+.pill-com{background:#FCE7F3;color:#9D174D;}
 .pill-musicien{background:#FCE7F3;color:#9D174D;}
 .bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
 .bdg-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
@@ -1610,6 +1648,12 @@ const INIT = {
   techAvail:    {},                         // { memberId: { "cid|YYYY-MM-DD": {on,ts} } }
   techDispoSent:{},                         // { memberId: { "cid|YYYY-MM": true } }
   techValidated:{ creil:{}, lognes:{} },    // { cid: { "YYYY-MM": true } }
+  // Groupe communication / audiovisuel (même structure)
+  comMembers:   { creil:[], lognes:[], toulouse:[] },
+  comPlans:     { creil:{} },
+  comAvail:     {},
+  comDispoSent: {},
+  comValidated: { creil:{} },
   notifLog:   [],
   songs:      SONGS0.map(normalizeSong),
   programs:   [],
@@ -1897,7 +1941,7 @@ export default function App() {
         // members can belong to two churches via church2 field
         splitMembers(mbrs,n);
         if(sngs.length)n.songs=sngs.map(normalizeSong);
-        n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
+        n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));TEAM_IDS.forEach(id=>{n[id+"Plans"]=Object.fromEntries(TEAMS[id].churches.map(cid=>[cid,{}]));});
         plans.forEach(p=>{
           if(handleExtraRow(p,n)){}
           else if(p.date==="availability"&&p.member_id&&p.availability){try{const av=JSON.parse(p.availability);if(typeof av==="object"&&!Array.isArray(av)){n.avail[p.member_id]=av;}}catch{}}
@@ -1942,7 +1986,7 @@ export default function App() {
           splitMembers(mbrs,n);
           if(sngs.length)n.songs=sngs.map(normalizeSong);
           n.plans=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));
-          n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.techPlans=Object.fromEntries(TECH_CHURCHES.map(cid=>[cid,{}]));
+          n.planService=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));n.planLead=Object.fromEntries(Object.keys(CHURCHES).map(cid=>[cid,{}]));TEAM_IDS.forEach(id=>{n[id+"Plans"]=Object.fromEntries(TEAMS[id].churches.map(cid=>[cid,{}]));});
           // Garder planStatus existant, juste mettre à jour depuis Supabase
           plans.forEach(p=>{
             if(handleExtraRow(p,n)){}
@@ -1984,7 +2028,7 @@ export default function App() {
   });
   const [loginId, setLoginId] = useState("admin");
   const [loginSearch, setLoginSearch] = useState("");
-  const [loginTeam, setLoginTeam] = useState("louange"); // "louange" | "tech"
+  const [loginTeam, setLoginTeam] = useState("louange"); // "louange" | "tech" | "com"
   const [changePinModal, setChangePinModal] = useState(false);
   const [loginPwd, setLoginPwd] = useState("");
   const [sessionExpired,setSessionExpired]=useState(()=>{
@@ -2036,14 +2080,14 @@ export default function App() {
     sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles||[nm.role],church:cid,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
     toast_(`${m.name} ajouté(e) ✓`,"👤");
   };
-  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;Object.keys(s.techMembers||{}).forEach(c=>{const j=s.techMembers[c].findIndex(x=>x.id===m.id);if(j>=0)s.techMembers[c][j]={...s.techMembers[c][j],...m};});});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
+  const editMember=(cid,m)=>{upd(s=>{const i=s.members[cid].findIndex(x=>x.id===m.id);if(i>=0)s.members[cid][i]=m;TEAM_IDS.forEach(id=>{const K=id+"Members";Object.keys(s[K]||{}).forEach(c=>{const j=s[K][c].findIndex(x=>x.id===m.id);if(j>=0)s[K][c][j]={...s[K][c][j],...m};});});});sbUpsert("members",{id:m.id,name:m.name,role:m.role,roles:m.roles||[m.role],church:cid,churches:m.churches||[],pin:m.pin||"0000",can_edit_lib:m.canEditLib||false,can_edit_prog:m.canEditProg||false});toast_("Fiche mise à jour","✏️");};
   function changePin(newPin){
     if(!user||user.role==="admin"||user.role==="pasteur")return;
     for(const cid of Object.keys(CHURCHES)){
-      const m=(st.members[cid]||[]).find(x=>x.id===user.id)||(st.techMembers?.[cid]||[]).find(x=>x.id===user.id);
+      const m=(st.members[cid]||[]).find(x=>x.id===user.id)||TEAM_IDS.map(id=>(st[id+"Members"]?.[cid]||[]).find(x=>x.id===user.id)).find(Boolean);
       if(m){
         const updated={...m,pin:newPin};
-        upd(s=>{["members","techMembers"].forEach(k=>Object.keys(s[k]||{}).forEach(c=>{s[k][c]=(s[k][c]||[]).map(x=>x.id===user.id?{...x,pin:newPin}:x);}));});
+        upd(s=>{["members",...TEAM_IDS.map(id=>id+"Members")].forEach(k=>Object.keys(s[k]||{}).forEach(c=>{s[k][c]=(s[k][c]||[]).map(x=>x.id===user.id?{...x,pin:newPin}:x);}));});
         sbUpsert("members",{id:updated.id,name:updated.name,role:updated.role,church:cid,pin:newPin,can_edit_lib:updated.canEditLib||false});
         window.__jclcMemberPin=newPin;
         toast_("Code PIN modifié avec succès","🔐");
@@ -2052,7 +2096,7 @@ export default function App() {
       }
     }
   }
-  const deleteMember=(cid,id)=>{upd(s=>{s.members[cid]=s.members[cid].filter(m=>m.id!==id);delete s.avail[id];Object.keys(s.techMembers||{}).forEach(c=>{s.techMembers[c]=s.techMembers[c].filter(m=>m.id!==id);});});sbDel("members",id);toast_("Membre supprimé","🗑️");};
+  const deleteMember=(cid,id)=>{upd(s=>{s.members[cid]=s.members[cid].filter(m=>m.id!==id);delete s.avail[id];TEAM_IDS.forEach(t=>{const K=t+"Members";Object.keys(s[K]||{}).forEach(c=>{s[K][c]=s[K][c].filter(m=>m.id!==id);});});});sbDel("members",id);toast_("Membre supprimé","🗑️");};
   const toggleLib=(cid,id)=>{
     const m=st.members[cid]?.find(x=>x.id===id);
     if(!m)return;
@@ -2092,76 +2136,82 @@ export default function App() {
     sbUpsert("plannings",{id:mid+"_dispo_sent",member_id:mid,church:memberChurch,date:"dispo_sent",availability:JSON.stringify(ds)});
   };
 
-  // ── Service technique ──
-  const isTech     = user && user.team==="tech";
+  // ── Équipes de service (technique, communication / audiovisuel) ──
+  const userTeam   = user && TEAMS[user.team] ? TEAMS[user.team] : null;
+  const isTech     = !!userTeam;              // connecté via une équipe de service (pas la louange)
   const isRespTech = isTech && user.isRespTech===true;
-  // Place un membre dans les bonnes listes (louange / technique) de chaque assemblée
+  // Place un membre dans les bonnes listes (louange / équipes) de chaque assemblée
   function placeMember(s,m){
     Object.keys(CHURCHES).forEach(c=>{
-      ["members","techMembers"].forEach(k=>{if(!s[k])s[k]={};s[k][c]=(s[k][c]||[]).filter(x=>x.id!==m.id);});
+      ["members",...TEAM_IDS.map(id=>id+"Members")].forEach(k=>{if(!s[k])s[k]={};s[k][c]=(s[k][c]||[]).filter(x=>x.id!==m.id);});
       if(memberBelongsTo(m,c)){
         if(isLouangeMember(m))s.members[c].push(m);
-        if(isTechMember(m))s.techMembers[c].push(m);
+        TEAM_IDS.forEach(id=>{if(isTeamMember(m,TEAMS[id]))s[id+"Members"][c].push(m);});
       }
     });
   }
-  const saveTechMember=(cid,m,isNew)=>{
-    const nm={...m,id:m.id||uid(),church:m.church||cid,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false};
-    upd(s=>{
-      placeMember(s,nm);
-      if(isNew)s.memberNotifications.push({id:uid(),memberId:nm.id,name:nm.name,church:CHURCHES[nm.church].fullName+" · Technique",pin:nm.pin||"0000",createdAt:new Date().toLocaleString("fr-FR"),seen:false});
-    });
-    sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib,can_edit_prog:nm.canEditProg});
-    toast_(isNew?`${nm.name} ajouté(e) à la technique ✓`:"Fiche mise à jour",isNew?"🎛️":"✏️");
-  };
-  const deleteTechMember=(m)=>{
-    const rest=memberRoles(m).filter(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH);
-    if(rest.length>0){
-      // Membre aussi dans la louange : on lui retire seulement ses postes techniques
-      if(!window.confirm(`${m.name} fait aussi partie de la louange. Le/la retirer uniquement de la technique ?`))return;
-      const nm={...m,roles:rest,role:rest.includes(m.role)?m.role:rest[0]};
-      upd(s=>placeMember(s,nm));
-      sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
-      toast_(`${m.name} retiré(e) de la technique`,"🗑️");
-    }else{
-      if(!window.confirm(`Supprimer ${m.name} ?`))return;
-      upd(s=>{Object.keys(CHURCHES).forEach(c=>{s.techMembers[c]=(s.techMembers[c]||[]).filter(x=>x.id!==m.id);});delete s.techAvail[m.id];});
-      sbDel("members",m.id);
-      toast_("Membre supprimé","🗑️");
-    }
-  };
-  const toggleTechAvail=(mid,cid,d)=>{
-    const k=techKey(cid,d),mk=techKey(cid,d.slice(0,7));
-    const na={...(st.techAvail[mid]||{})};
-    if(na[k])delete na[k];else na[k]={on:true,ts:new Date().toISOString()};
-    upd(s=>{
-      s.techAvail[mid]=na;
-      if(s.techDispoSent[mid]?.[mk]){
-        const ds={...s.techDispoSent[mid]};delete ds[mk];s.techDispoSent[mid]=ds;
-        sbUpsert("plannings",{id:mid+"_techdispo_sent",member_id:mid,church:cid,date:"tech_dispo_sent",availability:JSON.stringify(ds)});
+  function makeTeamActions(T){
+    const P=T.id,KM=P+"Members",KP=P+"Plans",KA=P+"Avail",KS=P+"DispoSent",KV=P+"Validated";
+    const saveMember=(cid,m,isNew)=>{
+      const nm={...m,id:m.id||uid(),church:m.church||cid,canEditLib:m.canEditLib||false,canEditProg:m.canEditProg||false};
+      upd(s=>{
+        placeMember(s,nm);
+        if(isNew)s.memberNotifications.push({id:uid(),memberId:nm.id,name:nm.name,church:CHURCHES[nm.church].fullName+" · "+T.label,pin:nm.pin||"0000",createdAt:new Date().toLocaleString("fr-FR"),seen:false});
+      });
+      sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib,can_edit_prog:nm.canEditProg});
+      toast_(isNew?`${nm.name} ajouté(e) — ${T.label} ✓`:"Fiche mise à jour",isNew?T.icon:"✏️");
+    };
+    const deleteMember=(m)=>{
+      const rest=memberRoles(m).filter(r=>!T.roles.includes(r)&&r!==T.resp);
+      if(rest.length>0){
+        // Membre aussi dans une autre équipe : on lui retire seulement les postes de celle-ci
+        if(!window.confirm(`${m.name} fait aussi partie d'une autre équipe (${otherTeamLabels(m,T).join(", ")}). Le/la retirer uniquement ${T.ofTeam} ?`))return;
+        const nm={...m,roles:rest,role:rest.includes(m.role)?m.role:rest[0]};
+        upd(s=>placeMember(s,nm));
+        sbUpsert("members",{id:nm.id,name:nm.name,role:nm.role,roles:nm.roles,church:nm.church,churches:nm.churches||[],pin:nm.pin||"0000",can_edit_lib:nm.canEditLib||false,can_edit_prog:nm.canEditProg||false});
+        toast_(`${m.name} retiré(e) ${T.ofTeam}`,"🗑️");
+      }else{
+        if(!window.confirm(`Supprimer ${m.name} ?`))return;
+        upd(s=>{Object.keys(CHURCHES).forEach(c=>{s[KM][c]=(s[KM][c]||[]).filter(x=>x.id!==m.id);});delete s[KA][m.id];});
+        sbDel("members",m.id);
+        toast_("Membre supprimé","🗑️");
       }
-    });
-    sbUpsert("plannings",{id:mid+"_techavail",member_id:mid,church:cid,date:"tech_availability",availability:JSON.stringify(na)});
-  };
-  const sendTechDispo=(mid,cid,monthKey)=>{
-    const mk=techKey(cid,monthKey);
-    const ds={...(st.techDispoSent[mid]||{}),[mk]:true};
-    upd(s=>{s.techDispoSent[mid]=ds;});
-    sbUpsert("plannings",{id:mid+"_techdispo_sent",member_id:mid,church:cid,date:"tech_dispo_sent",availability:JSON.stringify(ds)});
-  };
-  const setTechAssign=(cid,d,assign)=>{
-    upd(s=>{if(!s.techPlans[cid])s.techPlans[cid]={};if(Object.keys(assign).length)s.techPlans[cid][d]=assign;else delete s.techPlans[cid][d];});
-    if(Object.keys(assign).length)sbUpsert("plannings",{id:"tech_"+cid+"_"+d,member_id:"tech",church:cid,date:d,availability:JSON.stringify(assign)});
-    else sbDel("plannings","tech_"+cid+"_"+d);
-  };
-  const setTechValidated=(cid,mk,val)=>{
-    const cur={...(st.techValidated?.[cid]||{})};
-    if(val)cur[mk]=true;else delete cur[mk];
-    upd(s=>{if(!s.techValidated)s.techValidated={};s.techValidated[cid]=cur;});
-    sbUpsert("plannings",{id:"tech_validated_"+cid,member_id:"tech_status",church:cid,date:"tech_validated",availability:JSON.stringify(cur)});
-    toast_(val?"Planning technique validé et publié":"Planning technique repassé en brouillon",val?"✅":"✏️");
-  };
-  const techActions={toggleTechAvail,sendTechDispo,setTechAssign,setTechValidated,saveTechMember,deleteTechMember};
+    };
+    const toggleAvail=(mid,cid,d)=>{
+      const k=techKey(cid,d),mk=techKey(cid,d.slice(0,7));
+      const na={...(st[KA]?.[mid]||{})};
+      if(na[k])delete na[k];else na[k]={on:true,ts:new Date().toISOString()};
+      upd(s=>{
+        if(!s[KA])s[KA]={};if(!s[KS])s[KS]={};
+        s[KA][mid]=na;
+        if(s[KS][mid]?.[mk]){
+          const ds={...s[KS][mid]};delete ds[mk];s[KS][mid]=ds;
+          sbUpsert("plannings",{id:mid+"_"+P+"dispo_sent",member_id:mid,church:cid,date:P+"_dispo_sent",availability:JSON.stringify(ds)});
+        }
+      });
+      sbUpsert("plannings",{id:mid+"_"+P+"avail",member_id:mid,church:cid,date:P+"_availability",availability:JSON.stringify(na)});
+    };
+    const sendDispo=(mid,cid,monthKey)=>{
+      const mk=techKey(cid,monthKey);
+      const ds={...(st[KS]?.[mid]||{}),[mk]:true};
+      upd(s=>{if(!s[KS])s[KS]={};s[KS][mid]=ds;});
+      sbUpsert("plannings",{id:mid+"_"+P+"dispo_sent",member_id:mid,church:cid,date:P+"_dispo_sent",availability:JSON.stringify(ds)});
+    };
+    const setAssign=(cid,d,assign)=>{
+      upd(s=>{if(!s[KP])s[KP]={};if(!s[KP][cid])s[KP][cid]={};if(Object.keys(assign).length)s[KP][cid][d]=assign;else delete s[KP][cid][d];});
+      if(Object.keys(assign).length)sbUpsert("plannings",{id:P+"_"+cid+"_"+d,member_id:P,church:cid,date:d,availability:JSON.stringify(assign)});
+      else sbDel("plannings",P+"_"+cid+"_"+d);
+    };
+    const setValidated=(cid,mk,val)=>{
+      const cur={...(st[KV]?.[cid]||{})};
+      if(val)cur[mk]=true;else delete cur[mk];
+      upd(s=>{if(!s[KV])s[KV]={};s[KV][cid]=cur;});
+      sbUpsert("plannings",{id:P+"_validated_"+cid,member_id:P+"_status",church:cid,date:P+"_validated",availability:JSON.stringify(cur)});
+      toast_(val?`${T.planTitle} validé et publié`:`${T.planTitle} repassé en brouillon`,val?"✅":"✏️");
+    };
+    return {toggleAvail,sendDispo,setAssign,setValidated,saveMember,deleteMember};
+  }
+  const teamActions=Object.fromEntries(TEAM_IDS.map(id=>[id,makeTeamActions(TEAMS[id])]));
 
   // Migration unique Creil samedi → dimanche : lancée automatiquement à la connexion admin
   useEffect(()=>{
@@ -2272,7 +2322,7 @@ export default function App() {
   function login(){
     if(loginLocked)return;
     setLoginErr("");
-    if(loginTeam!=="tech"&&(loginId==="admin"||loginId==="pasteur")){
+    if(loginTeam==="louange"&&(loginId==="admin"||loginId==="pasteur")){
       const expected=loginId==="admin"?"Admin2024!":"Pasteur2024!";
       if(loginPwd!==expected){
         const att=loginAttempts+1;setLoginAttempts(att);
@@ -2285,7 +2335,7 @@ export default function App() {
     }
     const enteredPin=loginPin.join("");
     if(enteredPin.length<4){setLoginErr("Saisissez votre code PIN à 4 chiffres.");return;}
-    const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
+    const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="louange"?st.members:(st[loginTeam+"Members"]||{}))[cid]||[]);
     const seen=new Set();
     const uniqueMembers=allMembers.filter(m=>{if(seen.has(m.id))return false;seen.add(m.id);return true;});
     const m=uniqueMembers.find(x=>x.id===loginId);
@@ -2306,7 +2356,9 @@ export default function App() {
     setLoginErr("Compte introuvable. Vérifiez votre prénom.");
   }
 
-  const isAdminLogin=loginTeam!=="tech"&&(loginId==="admin"||loginId==="pasteur");
+  const isAdminLogin=loginTeam==="louange"&&(loginId==="admin"||loginId==="pasteur");
+  const LT=TEAMS[loginTeam]||null; // équipe de connexion (null = louange)
+  const switchLoginTeam=t=>{setLoginTeam(t);setLoginSearch("");setLoginId("admin");setLoginPwd("");setLoginPin(["","","",""]);setLoginErr("");setLoginAttempts(0);};
   const pinRefs=[useRef(),useRef(),useRef(),useRef()];
 
   function handlePinInput(i,val){
@@ -2316,7 +2368,7 @@ export default function App() {
     if(!val&&i>0)pinRefs[i-1].current?.focus();
     if(val&&i===3&&np.every(d=>d!=="")){
       const pin=np.join("");
-      const allM=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
+      const allM=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="louange"?st.members:(st[loginTeam+"Members"]||{}))[cid]||[]);
       const seen2=new Set();
       const uniqM=allM.filter(m=>{if(seen2.has(m.id))return false;seen2.add(m.id);return true;});
       const m=uniqM.find(x=>x.id===loginId);
@@ -2346,11 +2398,11 @@ export default function App() {
       <div className="login">
         <div className="lcard">
           <img src={LOGO_B64} alt="JCLC" style={{width:88,height:88,objectFit:"contain",filter:"drop-shadow(0 4px 20px rgba(255,170,0,.4))",marginBottom:18}}/>
-          <div className="ltitle">Groupe de Louange<br/>& Technique</div>
+          <div className="ltitle">Louange, Technique<br/>& Communication</div>
           <div className="lsub">Jésus-Christ Le Chemin</div>
           <div style={{display:"inline-flex",alignItems:"center",gap:6,margin:"4px auto 10px",padding:"5px 14px",borderRadius:20,fontSize:12,fontWeight:700,
-            background:loginTeam==="tech"?"rgba(8,145,178,.25)":"rgba(245,158,11,.15)",color:loginTeam==="tech"?"#67E8F9":"#FCD34D",border:`1px solid ${loginTeam==="tech"?"rgba(103,232,249,.35)":"rgba(252,211,77,.3)"}`}}>
-            {loginTeam==="tech"?"🎛️ Connexion Technique":"🎵 Connexion Louange"}
+            background:LT?LT.login.badgeBg:"rgba(245,158,11,.15)",color:LT?LT.login.fg:"#FCD34D",border:`1px solid ${LT?LT.login.border:"rgba(252,211,77,.3)"}`}}>
+            {LT?`${LT.icon} ${LT.login.label}`:"🎵 Connexion Louange"}
           </div>
 
           <label className="llabel" style={{marginTop:8}}>Votre prénom</label>
@@ -2360,11 +2412,11 @@ export default function App() {
 
           {loginSearch&&loginSearch.length>=2&&(()=>{
             const q=loginSearch.toLowerCase();
-            const specials=loginTeam==="tech"?[]:[
+            const specials=LT?[]:[
               {id:"admin",name:"Administrateur",role:"admin",church:"both"},
               {id:"pasteur",name:"Pasteur Alexandre",role:"pasteur",church:"both"}
             ].filter(s=>s.name.toLowerCase().includes(q));
-            const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="tech"?st.techMembers:st.members)[cid]||[]);
+            const allMembers=Object.keys(CHURCHES).flatMap(cid=>(loginTeam==="louange"?st.members:(st[loginTeam+"Members"]||{}))[cid]||[]);
             const seen=new Set();
             const members=allMembers.filter(m=>{if(seen.has(m.id))return false;if(m.name.toLowerCase().includes(q)){seen.add(m.id);return true;}return false;});
             const results=[...specials,...members];
@@ -2382,7 +2434,7 @@ export default function App() {
                     </div>
                     <div>
                       <div style={{fontWeight:600,fontSize:13,color:"#fff"}}>{m.name}</div>
-                      <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{m.role==="admin"?"Administrateur":m.role==="pasteur"?"Pasteur":loginTeam==="tech"?(isRespTechMember(m)?RESP_TECH:techPosts(m).join(" · ")):m.role||""}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{m.role==="admin"?"Administrateur":m.role==="pasteur"?"Pasteur":LT?(isRespTeamMember(m,LT)?LT.resp:teamPosts(m,LT).join(" · ")):m.role||""}</div>
                     </div>
                     {loginId===m.id&&<div style={{marginLeft:"auto",color:"#a5b4fc",fontSize:16}}>✓</div>}
                   </div>
@@ -2439,16 +2491,19 @@ export default function App() {
 
           <div style={{display:"flex",alignItems:"center",gap:10,margin:"22px 0 12px"}}>
             <div style={{flex:1,height:1,background:"rgba(255,255,255,.12)"}}/>
-            <span style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>{loginTeam==="tech"?"Vous êtes de la louange ?":"Vous êtes de la technique ?"}</span>
+            <span style={{fontSize:11,color:"rgba(255,255,255,.4)"}}>Vous êtes d'une autre équipe ?</span>
             <div style={{flex:1,height:1,background:"rgba(255,255,255,.12)"}}/>
           </div>
-          <button onClick={()=>{setLoginTeam(t=>t==="tech"?"louange":"tech");setLoginSearch("");setLoginId("admin");setLoginPwd("");setLoginPin(["","","",""]);setLoginErr("");setLoginAttempts(0);}}
-            style={{width:"100%",padding:"13px",borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:800,letterSpacing:.2,transition:"all .2s",
-              background:loginTeam==="tech"?"rgba(245,158,11,.12)":"rgba(8,145,178,.18)",
-              border:`1.5px solid ${loginTeam==="tech"?"rgba(245,158,11,.45)":"rgba(103,232,249,.45)"}`,
-              color:loginTeam==="tech"?"#FCD34D":"#67E8F9"}}>
-            {loginTeam==="tech"?"🎵 Connexion Louange":"🎛️ Connexion Technique"}
-          </button>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {[{id:"louange",icon:"🎵",label:"Connexion Louange",bg:"rgba(245,158,11,.12)",border:"rgba(245,158,11,.45)",fg:"#FCD34D"},
+              ...TEAM_IDS.map(id=>({id,icon:TEAMS[id].icon,...TEAMS[id].login}))].filter(o=>o.id!==loginTeam).map(o=>(
+              <button key={o.id} onClick={()=>switchLoginTeam(o.id)}
+                style={{width:"100%",padding:"13px",borderRadius:14,cursor:"pointer",fontSize:14,fontWeight:800,letterSpacing:.2,transition:"all .2s",
+                  background:o.bg,border:`1.5px solid ${o.border}`,color:o.fg}}>
+                {o.icon} {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </>
@@ -2457,14 +2512,14 @@ export default function App() {
   // ─── TABS & ROUTING ───
   const tabs = isTech
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"tech-mon-planning",l:"Mon planning",i:"⭐"},{id:"tech-dispos",l:"Disponibilités",i:"📅"},
-       ...(isRespTech?[{id:"tech-planning",l:"Planification",i:"📋"},{id:"tech-membres",l:"Équipe technique",i:"👥"},{id:"louange-consult",l:"Louange",i:"🎵"}]:[])]
+       ...(isRespTech?[{id:"tech-planning",l:"Planification",i:"📋"},{id:"tech-membres",l:userTeam.teamName,i:"👥"},{id:"louange-consult",l:"Louange",i:"🎵"}]:[])]
     : isAdmin
-    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"technique",l:"Technique",i:"🎛️"},{id:"faq",l:"FAQ",i:"❓"}]
+    ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"membres",l:"Membres",i:"👥"},{id:"permissions",l:"Permissions",i:"🔑"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"planning",l:"Planification",i:"📋"},{id:"calendrier",l:"Calendrier",i:"🗓️"},{id:"bibliotheque",l:"Bibliothèque",i:"🎵"},{id:"programmes",l:"Programmes",i:"📄"},{id:"repetition",l:"Répétition",i:"🎼"},{id:"pasteurs",l:"Pasteurs",i:"🙏"},{id:"statistiques",l:"Statistiques",i:"📊"},{id:"technique",l:"Technique",i:"🎛️"},{id:"communication",l:"Communication",i:"📸"},{id:"faq",l:"FAQ",i:"❓"}]
     : isMusicien
     ? [{id:"accueil",l:"Accueil",i:"🏠"},{id:"musicien",l:"Musicien",i:"🎸"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"},...(user.role==="Pianiste"?[{id:"piano",l:"Piano",i:"🎹"}]:[])]
     : [{id:"accueil",l:"Accueil",i:"🏠"},{id:"mon-planning",l:"Mon planning",i:"⭐"},{id:"disponibilites",l:"Disponibilités",i:"📅"},{id:"bibliotheque",l:"Chants",i:"🎵"},...(user.canEditProg?[{id:"programmes",l:"Programmes",i:"📄"}]:[]),...(user.canEditProg?[{id:"repetition",l:"Répétition",i:"🎼"}]:[]),...(user.canEditProg?[{id:"pasteurs",l:"Pasteurs",i:"🙏"}]:[]),{id:"faq",l:"FAQ",i:"❓"},{id:"chantres",l:"Chantres",i:"🎤"}];
 
-  const pillCls=isTech?"pill-tech":user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
+  const pillCls=isTech?userTeam.pill:user.role==="admin"?"pill-admin":user.role==="pasteur"?"pill-pasteur":user.canEditLib?"pill-bib":user.role==="Directeur Musical (DM)"?"pill-dm":"pill-member";
 
   const M={
     addMember:(cid)=>setModal({t:"addMember",cid}),
@@ -2512,7 +2567,7 @@ export default function App() {
           <div className="hbrand">
             <img src={LOGO_B64} alt="JCLC"/>
             <div className="hbrand-t">
-              <span className="hbrand-n">Groupe de Louange & Technique</span>
+              <span className="hbrand-n">Louange, Technique & Communication</span>
               <span className="hbrand-s">Jésus-Christ Le Chemin</span>
             </div>
           </div>
@@ -2523,7 +2578,7 @@ export default function App() {
               </button>
             )}
             <span className="husr">{user.name}</span>
-            <span className={`pill ${pillCls}`}>{isTech?(isRespTech?"Resp. technique":"Technique"):user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
+            <span className={`pill ${pillCls}`}>{isTech?(isRespTech?userTeam.respShort:userTeam.label):user.role==="admin"?"Admin":user.role==="pasteur"?"Pasteur":user.canEditLib?"Bibliothèque":user.role==="Directeur Musical (DM)"?"DM":"Membre"}</span>
             {user.role!=="admin"&&user.role!=="pasteur"&&<button className="btn btn-g btn-sm" title="Changer mon code PIN" onClick={()=>setChangePinModal(true)}>🔐 PIN</button>}
             <button className="btn btn-g btn-sm" onClick={()=>{setUser(null);localStorage.removeItem("jclc_user");}}>Déconnexion</button>
           </div>
@@ -2557,13 +2612,14 @@ export default function App() {
           )}
 
           <div className="tab-content">
-          {tab==="accueil"       &&isTech&&<TechAccueilTab user={user} st={st} verset={verset} onGo={setTab}/>}
-          {tab==="tech-mon-planning"&&isTech&&<TechMonPlanningTab user={user} st={st}/>}
-          {tab==="tech-dispos"   &&isTech&&<TechDispoTab user={user} st={st} church={TECH_CHURCHES.includes(myChurch2)?myChurch2:(memberChurches(user).find(c=>TECH_CHURCHES.includes(c))||"creil")} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions} toast_={toast_}/>}
-          {tab==="tech-planning" &&isRespTech&&<TechPlanningTab st={st} canEdit={true} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions}/>}
-          {tab==="tech-membres"  &&isRespTech&&<TechMembresTab st={st} canSetResp={false} A={techActions}/>}
+          {tab==="accueil"       &&isTech&&<TechAccueilTab T={userTeam} user={user} st={st} verset={verset} onGo={setTab}/>}
+          {tab==="tech-mon-planning"&&isTech&&<TechMonPlanningTab T={userTeam} user={user} st={st}/>}
+          {tab==="tech-dispos"   &&isTech&&<TechDispoTab T={userTeam} user={user} st={st} church={userTeam.churches.includes(myChurch2)?myChurch2:(memberChurches(user).find(c=>userTeam.churches.includes(c))||userTeam.churches[0])} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={teamActions[userTeam.id]} toast_={toast_}/>}
+          {tab==="tech-planning" &&isRespTech&&<TechPlanningTab T={userTeam} st={st} canEdit={true} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={teamActions[userTeam.id]}/>}
+          {tab==="tech-membres"  &&isRespTech&&<TechMembresTab T={userTeam} st={st} canSetResp={false} A={teamActions[userTeam.id]}/>}
           {tab==="louange-consult"&&isRespTech&&<LouangeConsultTab st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>}
-          {tab==="technique"     &&isAdmin&&<AdminTechTab st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={techActions}/>}
+          {tab==="technique"     &&isAdmin&&<AdminTechTab T={TEAMS.tech} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={teamActions.tech}/>}
+          {tab==="communication" &&isAdmin&&<AdminTechTab T={TEAMS.com} st={st} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={teamActions.com}/>}
           {tab==="accueil"       &&!isTech&&<AccueilTab user={user} isAdmin={isAdmin} st={st} verset={verset} showNotifBanner={showNotifBanner} onDismissNotif={()=>setNotifDismissed(true)} onGoDispos={()=>setTab("disponibilites")} month={month} year={year} prevMonth={prevMonth} nextMonth={nextMonth} church={myChurch}/>}
           {tab==="membres"       &&isAdmin&&<MembresTab st={st} M={M} deleteMember={deleteMember}/>}
           {tab==="permissions"   &&isAdmin&&<PermissionsTab st={st} toggleLib={toggleLib} toggleProg={toggleProg}/>}
@@ -2998,7 +3054,8 @@ function MusicienTab({user,st,church}){
     if(!item){setViewIdx(null);return null;}
     const sid=item.songId||item.id||("item-"+viewIdx);
     const songData=getSong(sid,item.title||item.songTitle);
-    const srcKey=songData.key||"Do";const origKey=item.key||srcKey;
+    const srcKey=songData.key||"Do"; // tonalité dans laquelle les accords sont écrits (bibliothèque)
+    const origKey=item.key||srcKey;   // tonalité choisie dans le programme
     const dispKey=getKey(sid,origKey);
     const st_=semit(srcKey,dispKey);
     return(
@@ -3128,7 +3185,8 @@ function MusicienTab({user,st,church}){
           {items.map((item,idx)=>{
             const sid=item.songId||item.id||("item-"+idx);
             const songData=getSong(sid,item.title||item.songTitle);
-            const srcKey=songData.key||"Do";const origKey=item.key||srcKey;
+            const srcKey=songData.key||"Do"; // tonalité dans laquelle les accords sont écrits (bibliothèque)
+            const origKey=item.key||srcKey;   // tonalité choisie dans le programme
             const dispKey=getKey(sid,origKey);
             const st_=semit(srcKey,dispKey);
             const normOrig=origKey.replace(/m$/,"").replace(/^Re$/,"Ré");
@@ -6163,19 +6221,22 @@ function PianoTab({ user }) {
 //  SERVICE TECHNIQUE
 // ══════════════════════════════════════════════════
 function techMonthKey(year,month){return `${year}-${String(month+1).padStart(2,"0")}`;}
-function TechChurchSwitch({value,onChange,st}){
+function TechChurchSwitch({T,value,onChange,st}){
   return(
     <div className="csw">
-      {TECH_CHURCHES.map(cid=>{const c=CHURCHES[cid];return(
+      {T.churches.map(cid=>{const c=CHURCHES[cid];return(
         <button key={cid} className={`cswb${value===cid?" "+cid:""}`} onClick={()=>onChange(cid)}>
           <span className="cswb-dot" style={{background:c.color}}/>{c.fullName}
-          {st&&<span className="cswb-cnt">{(st.techMembers?.[cid]||[]).length}</span>}
+          {st&&<span className="cswb-cnt">{(st[T.id+"Members"]?.[cid]||[]).length}</span>}
         </button>);})}
     </div>
   );
 }
-function TechEvTag({ev}){
-  const col=TECH_EV_COLORS[ev.type]||"#64748B";
+// Postes possibles pour une activité (ex. « Passage de micro » seulement aux cultes)
+function teamPostsForEv(T,ev){return T.roles.filter(p=>!T.postOnlyIf[p]||ev[T.postOnlyIf[p]]);}
+function teamPostIcon(T,p){return T.postIcons[p]||"•";}
+function TechEvTag({T,ev}){
+  const col=T.evColors[ev.type]||"#64748B";
   return <span className="atag" style={{background:col+"18",color:col}}>{ev.icon} {ev.label}</span>;
 }
 function TechMonthNav({year,month,prevMonth,nextMonth}){
@@ -6187,20 +6248,21 @@ function TechMonthNav({year,month,prevMonth,nextMonth}){
     </div>
   );
 }
-function findTechMember(st,id){
-  for(const cid of Object.keys(st.techMembers||{})){const m=(st.techMembers[cid]||[]).find(x=>x.id===id);if(m)return m;}
+function findTechMember(T,st,id){
+  const L=st[T.id+"Members"]||{};
+  for(const cid of Object.keys(L)){const m=(L[cid]||[]).find(x=>x.id===id);if(m)return m;}
   return null;
 }
 
 // ── Accueil technique ──
-function TechAccueilTab({user,st,verset,onGo}){
+function TechAccueilTab({T,user,st,verset,onGo}){
   const today=dk(new Date());
   const mine=[];
-  TECH_CHURCHES.forEach(cid=>{
-    Object.entries(st.techPlans?.[cid]||{}).forEach(([d,assign])=>{
-      if(d>=today&&assign&&assign[user.id]&&st.techValidated?.[cid]?.[d.slice(0,7)]){
+  T.churches.forEach(cid=>{
+    Object.entries(st[T.id+"Plans"]?.[cid]||{}).forEach(([d,assign])=>{
+      if(d>=today&&assign&&assign[user.id]&&st[T.id+"Validated"]?.[cid]?.[d.slice(0,7)]){
         const date=new Date(d+"T12:00:00");
-        const ev=(TECH_EVENTS[cid]||[]).find(e=>e.day===date.getDay());
+        const ev=(T.events[cid]||[]).find(e=>e.day===date.getDay());
         mine.push({cid,d,date,ev,poste:assign[user.id]});
       }
     });
@@ -6208,24 +6270,24 @@ function TechAccueilTab({user,st,verset,onGo}){
   mine.sort((a,b)=>a.d.localeCompare(b.d));
   const nm=new Date();nm.setMonth(nm.getMonth()+1);
   const nextMk=techMonthKey(nm.getFullYear(),nm.getMonth());
-  const myTechChurches=memberChurches(user).filter(c=>TECH_CHURCHES.includes(c));
-  const notSent=myTechChurches.some(c=>!st.techDispoSent?.[user.id]?.[techKey(c,nextMk)]);
+  const myTechChurches=memberChurches(user).filter(c=>T.churches.includes(c));
+  const notSent=myTechChurches.some(c=>!st[T.id+"DispoSent"]?.[user.id]?.[techKey(c,nextMk)]);
   return(
     <div>
-      <div className="ph"><div><div className="pt">Bonjour {user.name.split(" ")[0]} 👋</div><div className="ps">Service technique · {user.isRespTech?RESP_TECH:techPosts(user).join(" · ")||"Technique"}</div></div></div>
-      {verset&&<div className="card" style={{borderLeft:"4px solid #0891B2"}}><div style={{fontStyle:"italic",fontSize:14,lineHeight:1.6}}>« {verset.text} »</div><div style={{fontSize:12,color:"var(--txt3)",marginTop:6,fontWeight:700}}>{verset.ref}</div></div>}
+      <div className="ph"><div><div className="pt">Bonjour {user.name.split(" ")[0]} 👋</div><div className="ps">{T.service} · {user.isRespTech?T.resp:teamPosts(user,T).join(" · ")||T.label}</div></div></div>
+      {verset&&<div className="card" style={{borderLeft:`4px solid ${T.accent}`}}><div style={{fontStyle:"italic",fontSize:14,lineHeight:1.6}}>« {verset.text} »</div><div style={{fontSize:12,color:"var(--txt3)",marginTop:6,fontWeight:700}}>{verset.ref}</div></div>}
       {notSent&&<div className="ib amb" style={{cursor:"pointer"}} onClick={()=>onGo("tech-dispos")}>📅 Pensez à renseigner et envoyer vos disponibilités pour <strong>{MONTHS[nm.getMonth()]}</strong> →</div>}
       <div className="card">
         <div style={{fontWeight:700,marginBottom:12}}>⭐ Mes prochains services</div>
         {mine.length===0
-          ?<div className="empty" style={{padding:"18px 0"}}><div style={{fontSize:28}}>🎛️</div><div style={{fontSize:12,marginTop:6}}>Aucun service planifié pour le moment</div></div>
+          ?<div className="empty" style={{padding:"18px 0"}}><div style={{fontSize:28}}>{T.icon}</div><div style={{fontSize:12,marginTop:6}}>Aucun service planifié pour le moment</div></div>
           :mine.slice(0,5).map(x=>(
             <div key={x.cid+x.d} className="arow" style={{cursor:"default"}}>
               <div style={{flex:1}}>
                 <div style={{fontWeight:600,fontSize:13}}>{fmt(x.date)} · {CHURCHES[x.cid].name}</div>
-                {x.ev&&<TechEvTag ev={x.ev}/>}
+                {x.ev&&<TechEvTag T={T} ev={x.ev}/>}
               </div>
-              <span style={{fontSize:12,fontWeight:700,color:"#0891B2"}}>{x.poste}</span>
+              <span style={{fontSize:12,fontWeight:700,color:T.accent}}>{teamPostIcon(T,x.poste)} {x.poste}</span>
             </div>
           ))}
         {mine.length>5&&<button className="btn btn-g btn-sm" style={{marginTop:8}} onClick={()=>onGo("tech-mon-planning")}>Voir tout ({mine.length}) →</button>}
@@ -6235,15 +6297,15 @@ function TechAccueilTab({user,st,verset,onGo}){
 }
 
 // ── Mon planning technique ──
-function TechMonPlanningTab({user,st}){
+function TechMonPlanningTab({T,user,st}){
   const today=dk(new Date());
   const rows=[];
-  TECH_CHURCHES.forEach(cid=>{
-    Object.entries(st.techPlans?.[cid]||{}).forEach(([d,assign])=>{
-      if(d>=today&&assign&&assign[user.id]&&st.techValidated?.[cid]?.[d.slice(0,7)]){
+  T.churches.forEach(cid=>{
+    Object.entries(st[T.id+"Plans"]?.[cid]||{}).forEach(([d,assign])=>{
+      if(d>=today&&assign&&assign[user.id]&&st[T.id+"Validated"]?.[cid]?.[d.slice(0,7)]){
         const date=new Date(d+"T12:00:00");
-        const ev=(TECH_EVENTS[cid]||[]).find(e=>e.day===date.getDay());
-        const others=Object.entries(assign).filter(([id])=>id!==user.id).map(([id,poste])=>{const m=findTechMember(st,id);return m?`${m.name.split(" ")[0]} (${poste})`:null;}).filter(Boolean);
+        const ev=(T.events[cid]||[]).find(e=>e.day===date.getDay());
+        const others=Object.entries(assign).filter(([id])=>id!==user.id).map(([id,poste])=>{const m=findTechMember(T,st,id);return m?`${m.name.split(" ")[0]} (${poste})`:null;}).filter(Boolean);
         rows.push({cid,d,date,ev,poste:assign[user.id],others});
       }
     });
@@ -6251,15 +6313,15 @@ function TechMonPlanningTab({user,st}){
   rows.sort((a,b)=>a.d.localeCompare(b.d));
   return(
     <div>
-      <div className="ph"><div><div className="pt">Mon planning technique</div><div className="ps">Services à venir (plannings validés)</div></div></div>
+      <div className="ph"><div><div className="pt">Mon planning · {T.label}</div><div className="ps">Services à venir (plannings validés)</div></div></div>
       <div className="card">
         {rows.length===0
-          ?<div className="empty"><div className="empty-icon">📭</div><div>Aucun service à venir</div><div style={{fontSize:12,marginTop:6}}>Le planning apparaît ici une fois validé par la responsable technique.</div></div>
+          ?<div className="empty"><div className="empty-icon">📭</div><div>Aucun service à venir</div><div style={{fontSize:12,marginTop:6}}>Le planning apparaît ici une fois validé par {T.respTitle}.</div></div>
           :rows.map(x=>(
             <div key={x.cid+x.d} style={{padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",borderLeft:`4px solid ${CHURCHES[x.cid].color}`}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                <div><div style={{fontWeight:700,fontSize:14}}>{fmt(x.date)} · {CHURCHES[x.cid].name}</div>{x.ev&&<TechEvTag ev={x.ev}/>}</div>
-                <span style={{padding:"4px 12px",borderRadius:20,background:"#CFFAFE",color:"#155E75",fontSize:12,fontWeight:700}}>{x.poste}</span>
+                <div><div style={{fontWeight:700,fontSize:14}}>{fmt(x.date)} · {CHURCHES[x.cid].name}</div>{x.ev&&<TechEvTag T={T} ev={x.ev}/>}</div>
+                <span style={{padding:"4px 12px",borderRadius:20,background:T.chipBg,color:T.chipFg,fontSize:12,fontWeight:700}}>{teamPostIcon(T,x.poste)} {x.poste}</span>
               </div>
               {x.others.length>0&&<div style={{fontSize:12,color:"var(--txt2)",marginTop:6}}>Avec : {x.others.join(", ")}</div>}
             </div>
@@ -6270,16 +6332,16 @@ function TechMonPlanningTab({user,st}){
 }
 
 // ── Disponibilités technique (membre) ──
-function TechDispoTab({user,st,church,year,month,prevMonth,nextMonth,A,toast_}){
+function TechDispoTab({T,user,st,church,year,month,prevMonth,nextMonth,A,toast_}){
   const ch=CHURCHES[church];
-  const dates=getTechDates(year,month,church);
+  const dates=getTeamDates(T,year,month,church);
   const mk=techMonthKey(year,month);
-  const av=st.techAvail?.[user.id]||{};
+  const av=st[T.id+"Avail"]?.[user.id]||{};
   const hasChecked=dates.some(x=>av[techKey(church,x.d)]);
-  const isSent=!!st.techDispoSent?.[user.id]?.[techKey(church,mk)];
+  const isSent=!!st[T.id+"DispoSent"]?.[user.id]?.[techKey(church,mk)];
   return(
     <div>
-      <div className="ph"><div><div className="pt">Mes disponibilités</div><div className="ps">{ch.fullName} · Service technique</div></div></div>
+      <div className="ph"><div><div className="pt">Mes disponibilités</div><div className="ps">{ch.fullName} · {T.service}</div></div></div>
       <TechMonthNav year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth}/>
       <div className="card">
         <div className="ib ind">💡 Cochez les dates où vous êtes disponible pour <strong>{MONTHS[month]}</strong>, puis envoyez-les.</div>
@@ -6289,15 +6351,15 @@ function TechDispoTab({user,st,church,year,month,prevMonth,nextMonth,A,toast_}){
         :dates.map(({date,d,ev})=>{
           const on=!!av[techKey(church,d)];
           return(
-            <div className="arow" key={d+ev.type} onClick={()=>{A.toggleTechAvail(user.id,church,d);if(!on)toast_("Disponibilité enregistrée","📝");}}>
+            <div className="arow" key={d+ev.type} onClick={()=>{A.toggleAvail(user.id,church,d);if(!on)toast_("Disponibilité enregistrée","📝");}}>
               <div className={`chk${on?" on":""}`}>✓</div>
-              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag ev={ev}/></div>
-              {ev.micro&&<span style={{fontSize:10,color:"var(--txt3)"}}>🎤 passage de micro</span>}
+              <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag T={T} ev={ev}/></div>
+              {Object.keys(T.postHint).filter(p=>teamPostsForEv(T,ev).includes(p)).map(p=><span key={p} style={{fontSize:10,color:"var(--txt3)"}}>{T.postHint[p]}</span>)}
             </div>
           );
         })}
         <div className="flex-end" style={{marginTop:18}}>
-          <button className="btn btn-p" disabled={!hasChecked||isSent} onClick={()=>{A.sendTechDispo(user.id,church,mk);toast_("Disponibilités transmises à la responsable technique !","🎉");}}>Envoyer mes disponibilités →</button>
+          <button className="btn btn-p" disabled={!hasChecked||isSent} onClick={()=>{A.sendDispo(user.id,church,mk);toast_(`Disponibilités transmises à ${T.respTitle} !`,"🎉");}}>Envoyer mes disponibilités →</button>
         </div>
       </div>
     </div>
@@ -6305,19 +6367,20 @@ function TechDispoTab({user,st,church,year,month,prevMonth,nextMonth,A,toast_}){
 }
 
 // ── Modal d'affectation technique ──
-function TechAssignModal({cid,d,date,ev,members,avail,assign,onSave,onClose}){
+function TechAssignModal({T,cid,d,date,ev,members,avail,assign,onSave,onClose}){
   const ch=CHURCHES[cid];
   const [sel,setSel]=useState({...(assign||{})});
-  const postesFor=m=>{const ps=techPosts(m).filter(p=>ev.micro||p!=="Passage de micro");return ps.length?ps:TECH_ROLES.filter(p=>ev.micro||p!=="Passage de micro");};
-  const toggle=m=>setSel(s=>{const n={...s};if(n[m.id])delete n[m.id];else{const ps=postesFor(m);const regieTaken=Object.values(n).includes(TECH_REGIE);n[m.id]=(!regieTaken&&ps.includes(TECH_REGIE))?TECH_REGIE:(ps.find(p=>p!==TECH_REGIE)||ps[0]);}return n;});
+  const evPosts=teamPostsForEv(T,ev);
+  const postesFor=m=>{const ps=teamPosts(m,T).filter(p=>evPosts.includes(p));return ps.length?ps:evPosts;};
+  const toggle=m=>setSel(s=>{const n={...s};if(n[m.id])delete n[m.id];else{const ps=postesFor(m);const regieTaken=Object.values(n).includes(T.required);n[m.id]=(!regieTaken&&ps.includes(T.required))?T.required:(ps.find(p=>p!==T.required)||ps[0]);}return n;});
   const isAv=m=>!!avail[m.id]?.[techKey(cid,d)];
   const sorted=[...members].sort((a,b)=>(isAv(b)-isAv(a))||a.name.localeCompare(b.name));
-  const allPostes=TECH_ROLES.filter(p=>ev.micro||p!=="Passage de micro");
+  const allPostes=evPosts;
   return(
     <div className="modal">
-      <div className="modal-t">🎛️ Équipe technique</div>
+      <div className="modal-t">{T.icon} {T.teamName}</div>
       <div className="modal-s">{fmt(date)} · {ev.icon} {ev.label} · {ch.fullName}</div>
-      {members.length===0&&<div className="ib amb">Aucun membre technique dans cette assemblée. Ajoutez-les dans « Équipe technique ».</div>}
+      {members.length===0&&<div className="ib amb">Aucun membre dans cette assemblée. Ajoutez-les dans « {T.teamName} ».</div>}
       {sorted.map(m=>{
         const on=!!sel[m.id],av=isAv(m);
         return(
@@ -6336,28 +6399,28 @@ function TechAssignModal({cid,d,date,ev,members,avail,assign,onSave,onClose}){
           </div>
         );
       })}
-      {Object.keys(sel).length>0&&!Object.values(sel).includes(TECH_REGIE)&&<div className="ib amb" style={{marginTop:10}}>⚠️ Personne n'est encore à la <strong>Console / Régie</strong> pour cette date.</div>}
+      {Object.keys(sel).length>0&&!Object.values(sel).includes(T.required)&&<div className="ib amb" style={{marginTop:10}}>⚠️ Personne n'est encore au poste <strong>{T.required}</strong> pour cette date.</div>}
       <div className="flex-end"><button className="btn btn-g" onClick={onClose}>Annuler</button><button className="btn btn-p" onClick={()=>onSave(sel)}>Confirmer ({Object.keys(sel).length}) →</button></div>
     </div>
   );
 }
 
 // ── Planification technique (responsable : édition · admin : consultation) ──
-function TechPlanningTab({st,canEdit,year,month,prevMonth,nextMonth,A}){
-  const [cid,setCid]=useState("creil");
+function TechPlanningTab({T,st,canEdit,year,month,prevMonth,nextMonth,A}){
+  const [cid,setCid]=useState(T.churches[0]);
   const [modal,setModal]=useState(null);
   const [showFlyer,setShowFlyer]=useState(false);
   const ch=CHURCHES[cid];
-  const members=st.techMembers?.[cid]||[];
-  const plan=st.techPlans?.[cid]||{};
-  const dates=getTechDates(year,month,cid);
+  const members=st[T.id+"Members"]?.[cid]||[];
+  const plan=st[T.id+"Plans"]?.[cid]||{};
+  const dates=getTeamDates(T,year,month,cid);
   const mk=techMonthKey(year,month);
-  const validated=!!st.techValidated?.[cid]?.[mk];
+  const validated=!!st[T.id+"Validated"]?.[cid]?.[mk];
   const planned=dates.filter(x=>Object.keys(plan[x.d]||{}).length>0).length;
-  const sentCnt=members.filter(m=>st.techDispoSent?.[m.id]?.[techKey(cid,mk)]).length;
-  const nameOf=id=>{const m=members.find(x=>x.id===id)||findTechMember(st,id);return m?m.name.split(" ")[0]:"?";};
+  const sentCnt=members.filter(m=>st[T.id+"DispoSent"]?.[m.id]?.[techKey(cid,mk)]).length;
+  const nameOf=id=>{const m=members.find(x=>x.id===id)||findTechMember(T,st,id);return m?m.name.split(" ")[0]:"?";};
   function share(){
-    const lines=[`🎛️ *Planning technique ${ch.name} — ${MONTHS[month]} ${year}*`,""];
+    const lines=[`${T.icon} *${T.planTitle} ${ch.name} — ${MONTHS[month]} ${year}*`,""];
     dates.forEach(({date,d,ev})=>{const a=plan[d]||{};const ids=Object.keys(a);lines.push(`${ev.icon} ${date.toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"})} — ${ev.label} : ${ids.length?ids.map(id=>`${nameOf(id)} (${a[id]})`).join(", "):"—"}`);});
     lines.push("","_JCLC — Jésus-Christ Le Chemin_");
     window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`,"_blank");
@@ -6366,25 +6429,25 @@ function TechPlanningTab({st,canEdit,year,month,prevMonth,nextMonth,A}){
     <div>
       {modal&&(
         <div className="overlay" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
-          <TechAssignModal cid={cid} d={modal.d} date={modal.date} ev={modal.ev} members={members} avail={st.techAvail||{}} assign={plan[modal.d]}
-            onSave={a=>{A.setTechAssign(cid,modal.d,a);setModal(null);}} onClose={()=>setModal(null)}/>
+          <TechAssignModal T={T} cid={cid} d={modal.d} date={modal.date} ev={modal.ev} members={members} avail={st[T.id+"Avail"]||{}} assign={plan[modal.d]}
+            onSave={a=>{A.setAssign(cid,modal.d,a);setModal(null);}} onClose={()=>setModal(null)}/>
         </div>
       )}
-      <TechChurchSwitch value={cid} onChange={setCid} st={st}/>
+      {T.churches.length>1&&<TechChurchSwitch T={T} value={cid} onChange={setCid} st={st}/>}
       <div className="ph">
-        <div><div className="pt">Technique · {ch.fullName}</div><div className="ps">{canEdit?"Cliquez sur « Assigner » pour composer l'équipe":"Consultation du planning technique"}</div></div>
+        <div><div className="pt">{T.label} · {ch.fullName}</div><div className="ps">{canEdit?"Cliquez sur « Assigner » pour composer l'équipe":`Consultation · ${T.planTitle}`}</div></div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           <span className={`bdg ${validated?"bdg-val":"bdg-draft"}`}><span className="bdg-dot"/>{validated?"Validé":"Brouillon"}</span>
           {canEdit&&(validated
-            ?<button className="btn btn-g btn-sm" onClick={()=>A.setTechValidated(cid,mk,false)}>Modifier</button>
-            :<button className="btn btn-grn" onClick={()=>A.setTechValidated(cid,mk,true)}>✓ Valider</button>)}
+            ?<button className="btn btn-g btn-sm" onClick={()=>A.setValidated(cid,mk,false)}>Modifier</button>
+            :<button className="btn btn-grn" onClick={()=>A.setValidated(cid,mk,true)}>✓ Valider</button>)}
           <button className="btn btn-p btn-sm" onClick={()=>setShowFlyer(true)}>🖼️ Flyer</button>
           <button className="btn btn-g btn-sm" onClick={share}>📲 WhatsApp</button>
-          {showFlyer&&<TechFlyerModal cid={cid} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}
+          {showFlyer&&<TechFlyerModal T={T} cid={cid} st={st} month={month} year={year} onClose={()=>setShowFlyer(false)}/>}
         </div>
       </div>
       <div className="stats">
-        <div className="stat"><div className="statn">{members.length}</div><div className="statl">Membres tech</div></div>
+        <div className="stat"><div className="statn">{members.length}</div><div className="statl">Membres</div></div>
         <div className="stat"><div className="statn">{dates.length}</div><div className="statl">Dates ce mois</div></div>
         <div className="stat"><div className="statn" style={{color:ch.color}}>{planned}</div><div className="statl">Planifiées</div></div>
         <div className="stat"><div className="statn" style={{color:"var(--grn)"}}>{sentCnt}</div><div className="statl">Dispos reçues</div></div>
@@ -6394,14 +6457,14 @@ function TechPlanningTab({st,canEdit,year,month,prevMonth,nextMonth,A}){
         {dates.length===0?<div className="empty"><div className="empty-icon">📭</div><div>Aucune date ce mois-ci</div></div>
         :dates.map(({date,d,ev})=>{
           const a=plan[d]||{},ids=Object.keys(a);
-          const availCnt=members.filter(m=>st.techAvail?.[m.id]?.[techKey(cid,d)]).length;
+          const availCnt=members.filter(m=>st[T.id+"Avail"]?.[m.id]?.[techKey(cid,d)]).length;
           return(
-            <div key={d+ev.type} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",border:`1.5px solid ${ids.length?(TECH_EV_COLORS[ev.type]||ch.color):"transparent"}`,flexWrap:"wrap"}}>
-              <div style={{flex:"0 0 170px"}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag ev={ev}/></div>
+            <div key={d+ev.type} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",borderRadius:10,marginBottom:6,background:"var(--sur2)",border:`1.5px solid ${ids.length?(T.evColors[ev.type]||ch.color):"transparent"}`,flexWrap:"wrap"}}>
+              <div style={{flex:"0 0 170px"}}><div style={{fontWeight:600,fontSize:13}}>{fmt(date)}</div><TechEvTag T={T} ev={ev}/></div>
               <div style={{flex:1,display:"flex",gap:5,flexWrap:"wrap",minWidth:140}}>
-                {ids.length?ids.map(id=><span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:a[id]==="Passage de micro"?"#FEF3C7":"#CFFAFE",color:a[id]==="Passage de micro"?"#92400E":"#155E75"}}>{a[id]==="Passage de micro"?"🎤 ":""}{nameOf(id)} · {a[id]}</span>)
+                {ids.length?ids.map(id=><span key={id} style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:600,background:T.postChip[a[id]]?.bg||T.chipBg,color:T.postChip[a[id]]?.fg||T.chipFg}}>{teamPostIcon(T,a[id])} {nameOf(id)} · {a[id]}</span>)
                 :<span style={{fontSize:12,color:"var(--txt3)"}}>Non planifié</span>}
-                {ids.length>0&&!ids.some(id=>a[id]===TECH_REGIE)&&<span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:"#FEE2E2",color:"#B91C1C"}}>⚠️ Console / Régie à pourvoir</span>}
+                {ids.length>0&&!ids.some(id=>a[id]===T.required)&&<span style={{padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:"#FEE2E2",color:"#B91C1C"}}>⚠️ {T.required} à pourvoir</span>}
               </div>
               <span style={{fontSize:11,color:availCnt?"var(--grn)":"var(--txt3)",fontWeight:600}}>{availCnt} dispo(s)</span>
               {canEdit&&!validated&&<button className="btn btn-g btn-xs" onClick={()=>setModal({d,date,ev})}>Assigner</button>}
@@ -6414,41 +6477,41 @@ function TechPlanningTab({st,canEdit,year,month,prevMonth,nextMonth,A}){
 }
 
 // ── Fiche membre technique ──
-function TechMemberModal({churchId,member,canSetResp,onSave,onClose}){
+function TechMemberModal({T,churchId,member,canSetResp,onSave,onClose}){
   const ch=CHURCHES[churchId];
   const [name,setName]=useState(member?.name||"");
-  const [posts,setPosts]=useState(member?techPosts(member):[]);
-  const [resp,setResp]=useState(member?isRespTechMember(member):false);
+  const [posts,setPosts]=useState(member?teamPosts(member,T):[]);
+  const [resp,setResp]=useState(member?isRespTeamMember(member,T):false);
   const [phone,setPhone]=useState(member?.phone||"");
   const [pin,setPin]=useState(member?.pin||"0000");
   const [churches,setChurches]=useState(member?.churches||(member?.church2?[member.church2]:[]));
   const valid=name.trim()&&/^\d{4}$/.test(pin)&&posts.length>0;
   const toggle=(arr,set,v)=>set(arr.includes(v)?arr.filter(x=>x!==v):[...arr,v]);
   function save(){
-    const louangeRoles=member?memberRoles(member).filter(r=>!TECH_ROLES.includes(r)&&r!==RESP_TECH):[];
-    const roles=[...louangeRoles,...posts,...(resp?[RESP_TECH]:[])];
+    const louangeRoles=member?memberRoles(member).filter(r=>!T.roles.includes(r)&&r!==T.resp):[]; // rôles des autres équipes, conservés
+    const roles=[...louangeRoles,...posts,...(resp?[T.resp]:[])];
     const role=louangeRoles.length?(louangeRoles.includes(member.role)?member.role:louangeRoles[0]):posts[0];
     onSave({...(member||{}),name:name.trim(),roles,role,phone,pin,church:member?.church||churchId,churches,church2:churches[0]||null});
   }
   return(
     <div className="modal">
-      <div className="modal-t">{member?"Modifier le membre technique":"Ajouter un membre technique"}</div>
-      <div className="modal-s">{ch.fullName} · Service technique</div>
+      <div className="modal-t">{member?`Modifier — ${T.teamName}`:`Ajouter — ${T.teamName}`}</div>
+      <div className="modal-s">{ch.fullName} · {T.service}</div>
       <div className="g2">
         <div className="fld"><label>Nom *</label><input className="inp" placeholder="Prénom Nom" value={name} onChange={e=>setName(e.target.value)}/></div>
-        <div className="fld">
+        {T.churches.length>1&&<div className="fld">
           <label>Sert aussi à</label>
           <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
-            {TECH_CHURCHES.filter(c=>c!==(member?.church||churchId)).map(c=>(
+            {T.churches.filter(c=>c!==(member?.church||churchId)).map(c=>(
               <button key={c} type="button" className={"btn btn-sm "+(churches.includes(c)?"btn-p":"btn-g")} style={{fontSize:11,padding:"4px 10px"}} onClick={()=>toggle(churches,setChurches,c)}>{CHURCHES[c].fullName}</button>
             ))}
           </div>
-        </div>
+        </div>}
       </div>
       <div className="fld">
         <label>Postes * <span style={{fontWeight:400,color:"var(--txt3)",fontSize:11}}>(plusieurs possibles)</span></label>
         <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:4}}>
-          {TECH_ROLES.map(r=>(
+          {T.roles.map(r=>(
             <button key={r} type="button" className={"btn btn-sm "+(posts.includes(r)?"btn-p":"btn-g")} style={{fontSize:11,padding:"4px 10px"}} onClick={()=>toggle(posts,setPosts,r)}>{r}</button>
           ))}
         </div>
@@ -6457,14 +6520,14 @@ function TechMemberModal({churchId,member,canSetResp,onSave,onClose}){
       {canSetResp&&(
         <div className="arow" style={{marginBottom:14}} onClick={()=>setResp(v=>!v)}>
           <div className={`chk${resp?" on":""}`}>✓</div>
-          <div><div style={{fontWeight:600,fontSize:13}}>{RESP_TECH}</div><div style={{fontSize:11,color:"var(--txt2)"}}>Planifie les équipes techniques et consulte le planning de la louange</div></div>
+          <div><div style={{fontWeight:600,fontSize:13}}>{T.resp}</div><div style={{fontSize:11,color:"var(--txt2)"}}>{T.respDesc}</div></div>
         </div>
       )}
       <div className="g2">
         <div className="fld"><label>Téléphone</label><input className="inp" placeholder="+33 6 …" value={phone} onChange={e=>setPhone(e.target.value)}/></div>
         <div className="fld"><label>Code PIN (4 chiffres) *</label><input className="inp" maxLength={4} placeholder="0000" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,"").slice(0,4))}/></div>
       </div>
-      <div className="ib ind">🎛️ Ce membre se connecte via le bouton <strong>« Connexion Technique »</strong> avec son prénom et ce code PIN.</div>
+      <div className="ib ind">{T.icon} Ce membre se connecte via le bouton <strong>« {T.login.label} »</strong> avec son prénom et ce code PIN.</div>
       <div className="flex-end">
         <button className="btn btn-g" onClick={onClose}>Annuler</button>
         <button className="btn btn-p" disabled={!valid} onClick={save}>{member?"Sauvegarder →":"Ajouter →"}</button>
@@ -6474,7 +6537,7 @@ function TechMemberModal({churchId,member,canSetResp,onSave,onClose}){
 }
 
 // ── Équipe technique (liste des membres) ──
-function TechMembresTab({st,canSetResp,A}){
+function TechMembresTab({T,st,canSetResp,A}){
   const [modal,setModal]=useState(null);
   const [created,setCreated]=useState(null); // identifiants à transmettre au nouveau membre
   return(
@@ -6485,12 +6548,12 @@ function TechMembresTab({st,canSetResp,A}){
             <div className="modal-t">✅ {created.name} a été ajouté(e)</div>
             <div className="modal-s">Identifiants de connexion à lui transmettre</div>
             <div style={{background:"var(--sur2)",borderRadius:"var(--r)",padding:16,marginBottom:14}}>
-              <div style={{fontSize:14,marginBottom:6}}>🎛️ Bouton : <strong>« Connexion Technique »</strong></div>
+              <div style={{fontSize:14,marginBottom:6}}>{T.icon} Bouton : <strong>« {T.login.label} »</strong></div>
               <div style={{fontSize:14,marginBottom:6}}>📱 Prénom à taper : <strong>{created.name}</strong></div>
               <div style={{fontSize:14}}>🔢 Code PIN : <strong style={{fontFamily:"monospace",fontSize:20,letterSpacing:6,color:"var(--ind)"}}>{created.pin}</strong></div>
             </div>
             <div className="flex-end">
-              <button className="btn btn-g" onClick={()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Bienvenue dans l'équipe technique JCLC 🎛️\nConnecte-toi sur l'appli avec le bouton « Connexion Technique ».\nPrénom : ${created.name}\nCode PIN : ${created.pin}`)}`,"_blank")}>📲 Envoyer par WhatsApp</button>
+              <button className="btn btn-g" onClick={()=>window.open(`https://wa.me/?text=${encodeURIComponent(`Bienvenue dans l'équipe ${T.label.toLowerCase()} JCLC ${T.icon}\nConnecte-toi sur l'appli avec le bouton « ${T.login.label} ».\nPrénom : ${created.name}\nCode PIN : ${created.pin}`)}`,"_blank")}>📲 Envoyer par WhatsApp</button>
               <button className="btn btn-p" onClick={()=>setCreated(null)}>Compris ✓</button>
             </div>
           </div>
@@ -6498,34 +6561,34 @@ function TechMembresTab({st,canSetResp,A}){
       )}
       {modal&&(
         <div className="overlay" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
-          <TechMemberModal churchId={modal.cid} member={modal.m} canSetResp={canSetResp}
-            onSave={m=>{const isNew=!modal.m;A.saveTechMember(modal.cid,m,isNew);setModal(null);if(isNew)setCreated(m);}} onClose={()=>setModal(null)}/>
+          <TechMemberModal T={T} churchId={modal.cid} member={modal.m} canSetResp={canSetResp}
+            onSave={m=>{const isNew=!modal.m;A.saveMember(modal.cid,m,isNew);setModal(null);if(isNew)setCreated(m);}} onClose={()=>setModal(null)}/>
         </div>
       )}
-      <div className="ph"><div><div className="pt">Équipe technique</div><div className="ps">Créez et modifiez les fiches de votre équipe avec « + Ajouter »</div></div></div>
+      <div className="ph"><div><div className="pt">{T.teamName}</div><div className="ps">Créez et modifiez les fiches de votre équipe avec « + Ajouter »</div></div></div>
       <div className="g2">
-        {TECH_CHURCHES.map(cid=>{const c=CHURCHES[cid];const list=st.techMembers?.[cid]||[];return(
+        {T.churches.map(cid=>{const c=CHURCHES[cid];const list=st[T.id+"Members"]?.[cid]||[];return(
           <div key={cid} style={{background:c.bg,border:`1.5px solid ${c.color}`,borderRadius:16,padding:18}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
               <div style={{fontWeight:700,color:c.color,fontSize:15}}>{c.fullName}</div>
               <button className="btn btn-sm" style={{background:c.color,color:"#fff"}} onClick={()=>setModal({cid,m:null})}>+ Ajouter</button>
             </div>
             {list.length===0
-              ?<div className="empty" style={{padding:"16px 0"}}><div style={{fontSize:30}}>🎛️</div><div style={{fontSize:12,marginTop:5}}>Aucun membre technique</div></div>
+              ?<div className="empty" style={{padding:"16px 0"}}><div style={{fontSize:30}}>{T.icon}</div><div style={{fontSize:12,marginTop:5}}>Aucun membre</div></div>
               :<div className="scroll-list">{list.map(m=>(
                 <div className="mrow" key={m.id}>
-                  <div className="mav" style={{background:"#CFFAFE",color:"#155E75"}}>{m.name.charAt(0)}</div>
+                  <div className="mav" style={{background:T.chipBg,color:T.chipFg}}>{m.name.charAt(0)}</div>
                   <div style={{flex:1,minWidth:0}}>
                     <div style={{fontWeight:600,fontSize:13,display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                       {m.name}
-                      {isRespTechMember(m)&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:"#155E75",color:"#fff",fontWeight:700}}>Responsable</span>}
-                      {isLouangeMember(m)&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:"#FEF3C7",color:"#92400E",fontWeight:700}}>Louange aussi</span>}
+                      {isRespTeamMember(m,T)&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:T.chipFg,color:"#fff",fontWeight:700}}>Responsable</span>}
+                      {otherTeamLabels(m,T).map(l=><span key={l} style={{fontSize:9,padding:"1px 6px",borderRadius:20,background:"#FEF3C7",color:"#92400E",fontWeight:700}}>{l} aussi</span>)}
                     </div>
-                    <div style={{fontSize:11,color:"var(--txt2)"}}>{techPosts(m).join(" · ")}</div>
+                    <div style={{fontSize:11,color:"var(--txt2)"}}>{teamPosts(m,T).join(" · ")}</div>
                     {m.phone&&<div style={{fontSize:11,color:"var(--txt3)"}}>📱 {m.phone}</div>}
                   </div>
-                  <button className="btn btn-g btn-xs btn-ic" title="Modifier" onClick={()=>setModal({cid:m.church&&TECH_CHURCHES.includes(m.church)?m.church:cid,m})}>✏️</button>
-                  <button className="btn btn-d btn-xs btn-ic" title="Supprimer" onClick={()=>A.deleteTechMember(m)}>🗑</button>
+                  <button className="btn btn-g btn-xs btn-ic" title="Modifier" onClick={()=>setModal({cid:m.church&&T.churches.includes(m.church)?m.church:cid,m})}>✏️</button>
+                  <button className="btn btn-d btn-xs btn-ic" title="Supprimer" onClick={()=>A.deleteMember(m)}>🗑</button>
                 </div>
               ))}</div>}
           </div>);})}
@@ -6577,38 +6640,38 @@ function LouangeConsultTab({st,year,month,prevMonth,nextMonth}){
 }
 
 // ── Onglet Technique côté admin : consultation du planning + gestion de l'équipe ──
-function AdminTechTab({st,year,month,prevMonth,nextMonth,A}){
+function AdminTechTab({T,st,year,month,prevMonth,nextMonth,A}){
   const [view,setView]=useState("planning");
   return(
     <div>
       <div style={{display:"flex",gap:6,marginBottom:16}}>
-        <button className={`btn btn-sm ${view==="planning"?"btn-p":"btn-g"}`} onClick={()=>setView("planning")}>📋 Planning technique</button>
-        <button className={`btn btn-sm ${view==="membres"?"btn-p":"btn-g"}`} onClick={()=>setView("membres")}>👥 Équipe technique</button>
+        <button className={`btn btn-sm ${view==="planning"?"btn-p":"btn-g"}`} onClick={()=>setView("planning")}>📋 {T.planTitle}</button>
+        <button className={`btn btn-sm ${view==="membres"?"btn-p":"btn-g"}`} onClick={()=>setView("membres")}>👥 {T.teamName}</button>
       </div>
       {view==="planning"
-        ?<TechPlanningTab st={st} canEdit={false} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={A}/>
-        :<TechMembresTab st={st} canSetResp={true} A={A}/>}
+        ?<TechPlanningTab T={T} st={st} canEdit={false} year={year} month={month} prevMonth={prevMonth} nextMonth={nextMonth} A={A}/>
+        :<TechMembresTab T={T} st={st} canSetResp={true} A={A}/>}
     </div>
   );
 }
 
 // ── Flyer du planning technique (même style que le flyer louange) ──
-function TechFlyerModal({cid,st,month,year,onClose}){
+function TechFlyerModal({T,cid,st,month,year,onClose}){
   const ch=CHURCHES[cid];
   const fc=FLYER_COLORS[cid];
-  const plan=st.techPlans?.[cid]||{};
+  const plan=st[T.id+"Plans"]?.[cid]||{};
   const flyerRef=useRef(null);
   const monthLabel=new Date(year,month).toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
   const monthLabelUp=monthLabel.charAt(0).toUpperCase()+monthLabel.slice(1);
-  const dates=getTechDates(year,month,cid);
-  const nameOf=id=>{const m=findTechMember(st,id);return m?m.name.split(" ")[0]:"?";};
+  const dates=getTeamDates(T,year,month,cid);
+  const nameOf=id=>{const m=findTechMember(T,st,id);return m?m.name.split(" ")[0]:"?";};
   const dayName=day=>["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"][day];
-  const sections=(TECH_EVENTS[cid]||[]).slice().sort((a,b)=>["culte","atelier","repet","priere"].indexOf(a.type)-["culte","atelier","repet","priere"].indexOf(b.type))
+  const sections=(T.events[cid]||[]).slice().sort((a,b)=>["culte","atelier","repet","priere"].indexOf(a.type)-["culte","atelier","repet","priere"].indexOf(b.type))
     .map(ev=>({ev,items:dates.filter(x=>x.ev.type===ev.type)})).filter(s=>s.items.length);
-  const postIcon=p=>p==="Passage de micro"?"🎤":p===TECH_REGIE?"🎚️":"•";
+  const postIcon=p=>teamPostIcon(T,p);
 
   function shareWhatsApp(){
-    const lines=[`🎛️ *Planning technique ${ch.name} — ${monthLabelUp}*`,""];
+    const lines=[`${T.icon} *${T.planTitle} ${ch.name} — ${monthLabelUp}*`,""];
     sections.forEach(({ev,items})=>{
       lines.push(`${ev.icon} *${ev.label} (${dayName(ev.day)}s)*`);
       items.forEach(({date,d})=>{const a=plan[d]||{};const ids=Object.keys(a);lines.push(`  📅 ${date.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})} : ${ids.length?ids.map(id=>`${nameOf(id)} (${a[id]})`).join(", "):"—"}`);});
@@ -6619,7 +6682,7 @@ function TechFlyerModal({cid,st,month,year,onClose}){
   }
 
   function DateCard({date,d}){
-    const a=plan[d]||{},ids=Object.keys(a).sort((x,y)=>(a[x]===TECH_REGIE?-1:0)-(a[y]===TECH_REGIE?-1:0));
+    const a=plan[d]||{},ids=Object.keys(a).sort((x,y)=>(a[x]===T.required?-1:0)-(a[y]===T.required?-1:0));
     const isEmpty=ids.length===0;
     return(
       <div style={{borderRadius:14,padding:"12px 14px",background:isEmpty?"rgba(0,0,0,.05)":fc.card,border:isEmpty?"2px dashed rgba(0,0,0,.12)":"none",
@@ -6629,8 +6692,8 @@ function TechFlyerModal({cid,st,month,year,onClose}){
         {isEmpty
           ?<div style={{fontSize:"0.72rem",fontStyle:"italic",color:"#aaa"}}>À assigner</div>
           :ids.map(id=>(
-            <div key={id} style={{fontSize:"0.75rem",fontWeight:700,paddingLeft:4,color:a[id]===TECH_REGIE?"#f5c842":"rgba(255,255,255,.88)"}}>
-              {postIcon(a[id])} {nameOf(id)} <span style={{fontSize:"0.58rem",fontWeight:600,opacity:.75}}>· {a[id]===TECH_REGIE?"Régie":a[id]==="Passage de micro"?"Micro":a[id]}</span>
+            <div key={id} style={{fontSize:"0.75rem",fontWeight:700,paddingLeft:4,color:a[id]===T.required?"#f5c842":"rgba(255,255,255,.88)"}}>
+              {postIcon(a[id])} {nameOf(id)} <span style={{fontSize:"0.58rem",fontWeight:600,opacity:.75}}>· {T.postShort[a[id]]||a[id]}</span>
             </div>
           ))}
       </div>
@@ -6648,7 +6711,7 @@ function TechFlyerModal({cid,st,month,year,onClose}){
               const{default:h2c}=await import("https://esm.sh/html2canvas@1.4.1");
               const canvas=await h2c(el,{scale:2,useCORS:true,backgroundColor:"white"});
               const link=document.createElement("a");
-              link.download=`planning-technique-${cid}-${monthLabelUp.replace(/ /g,"-")}.jpg`;
+              link.download=`planning-${T.id}-${cid}-${monthLabelUp.replace(/ /g,"-")}.jpg`;
               link.href=canvas.toDataURL("image/jpeg",0.92);link.click();
             }catch(e){alert("Erreur export: "+e.message);}
           }}>📥 Télécharger JPEG</button>
@@ -6665,7 +6728,7 @@ function TechFlyerModal({cid,st,month,year,onClose}){
             </div>
             <div style={{position:"relative",zIndex:1,marginTop:8}}>
               <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:"3.8rem",color:"white",lineHeight:1,textShadow:"3px 3px 0 rgba(0,0,0,.2)"}}>Planning</div>
-              <div style={{fontSize:"1rem",fontWeight:800,color:"rgba(255,255,255,.9)",letterSpacing:"1px",textTransform:"uppercase",marginTop:-4}}>🎛️ Service Technique</div>
+              <div style={{fontSize:"1rem",fontWeight:800,color:"rgba(255,255,255,.9)",letterSpacing:"1px",textTransform:"uppercase",marginTop:-4}}>{T.icon} {T.service}</div>
               <div style={{marginTop:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{display:"inline-block",background:"#f5c842",color:"#111",fontFamily:"'Bebas Neue',sans-serif",fontSize:"1.6rem",letterSpacing:"4px",padding:"2px 16px",borderRadius:7}}>{monthLabelUp}</span>
                 <span style={{display:"inline-block",background:fc.badge,color:"white",fontSize:"0.7rem",fontWeight:800,letterSpacing:"3px",textTransform:"uppercase",padding:"4px 14px",borderRadius:50,border:"1.5px solid rgba(255,255,255,.3)"}}>{ch.name}</span>
@@ -6673,7 +6736,7 @@ function TechFlyerModal({cid,st,month,year,onClose}){
             </div>
             <div style={{display:"flex",gap:8,marginTop:12,flexWrap:"wrap",position:"relative",zIndex:1}}>
               <div style={{background:"rgba(0,0,0,.22)",borderRadius:20,padding:"4px 12px",fontSize:"0.68rem",fontWeight:700,color:"white"}}>⚠️ Modifications possibles en cours de mois</div>
-              <div style={{background:"rgba(0,0,0,.22)",borderRadius:20,padding:"4px 12px",fontSize:"0.68rem",fontWeight:700,color:"white"}}>🎚️ Console / Régie · 🎤 Passage de micro</div>
+              <div style={{background:"rgba(0,0,0,.22)",borderRadius:20,padding:"4px 12px",fontSize:"0.68rem",fontWeight:700,color:"white"}}>{T.roles.map(r=>`${teamPostIcon(T,r)} ${r}`).join(" · ")}</div>
             </div>
           </div>
 
@@ -6692,7 +6755,7 @@ function TechFlyerModal({cid,st,month,year,onClose}){
           </div>
 
           <div style={{background:fc.footer,padding:"10px 20px",textAlign:"center",fontSize:"0.65rem",fontWeight:700,letterSpacing:"1px",color:"rgba(255,255,255,.7)"}}>
-            Assemblée Jésus-Christ Le Chemin — {ch.name} · Service technique &nbsp;|&nbsp; ⚠️ Modifications possibles
+            Assemblée Jésus-Christ Le Chemin — {ch.name} · {T.service} &nbsp;|&nbsp; ⚠️ Modifications possibles
           </div>
         </div>
       </div>
