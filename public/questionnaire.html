@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon chemin de serviteur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: doux, encourageant, pastoral — une photo du moment, pas une note
+   IDEA: un chemin (JCLC = Jésus-Christ Le Chemin) jalonné d'étapes
+   PICTURE: un sentier doré qui serpente vers la lumière, avec des jalons
+   COLOUR and TYPE: blanc, encre indigo profond, or du tabernacle ; Outfit + Inter
+   LAYOUT: une colonne calme, étapes une à une, barre de progression */
+:root{color-scheme:light dark;
+--bg:light-dark(#ffffff,#12153a);--ink:light-dark(#171a45,#eef0ff);--soft:light-dark(#5b5f85,#b5b9e0);
+--line:light-dark(#e3e5f2,#2b2f63);--card:light-dark(#f6f7fc,#1a1e4c);--gold:#e3a51d;--gold2:light-dark(#fff3d3,#3a3216);--deep:light-dark(#171a45,#0b0d29)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:Outfit,system-ui,sans-serif;line-height:1.1;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,7vw,44px)}h2{font-size:24px;margin-bottom:6px}h3{font-size:18px}
+.hero{background:var(--deep);color:#eef0ff;padding:28px max(5vw,18px) 0;overflow:hidden}
+.logo{display:inline-flex;background:#fbfaf6;border-radius:16px;padding:6px;margin-bottom:14px}.logo img{display:block;width:72px;height:72px}
+.hero p{color:#c9cdf2;max-width:560px;margin:10px 0 0}
+.hero svg{display:block;width:100%;max-width:640px;height:auto;margin:18px auto 0}
+main{max-width:640px;margin:0 auto;padding:22px max(4vw,16px) 60px}
+.prog{position:sticky;top:0;z-index:5;background:var(--bg);padding:12px 0 10px;border-bottom:1px solid var(--line);margin-bottom:18px}
+.prog .bar{height:8px;border-radius:8px;background:var(--line);overflow:hidden}
+.prog .bar i{display:block;height:100%;width:0;background:var(--gold);transition:width .35s}
+.prog small{display:block;color:var(--soft);font-size:13px;margin-top:6px}
+.step{display:none}.step.on{display:block}
+.intro{color:var(--soft);margin:0 0 18px}
+.q{margin:0 0 22px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--card)}
+.q>label,.q>.t{display:block;font-weight:600;margin-bottom:10px}
+.q .hint{display:block;font-weight:400;color:var(--soft);font-size:14px;margin-top:2px}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:12px;border:1px solid var(--line);border-radius:10px;margin-top:8px;cursor:pointer;background:var(--bg);min-height:44px}
+.opt input{margin-top:3px;width:20px;height:20px;accent-color:var(--gold);flex:none}
+.opt:has(input:checked){border-color:var(--gold);background:var(--gold2)}
+input[type=text],textarea,select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:44px}
+textarea{min-height:80px;resize:vertical}
+:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.scale{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.scale label{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;font-size:13px;padding:10px 4px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--bg)}
+.scale label b{font-size:20px;font-family:Outfit}
+.scale input{position:absolute;opacity:0}
+.scale label:has(input:checked){border-color:var(--gold);background:var(--gold2)}
+.scale label:has(input:focus-visible){outline:3px solid var(--gold)}
+.nav{display:flex;gap:10px;justify-content:space-between;margin-top:10px}
+button,.btn{font:600 16px Inter,sans-serif;min-height:48px;padding:12px 20px;border-radius:12px;border:0;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.pri{background:var(--gold);color:#171a45}.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.wa{background:#1f9d55;color:#fff;width:100%}
+.err{color:#c0392b;font-size:14px;min-height:20px;margin:4px 0 0}
+.res{border-radius:18px;background:var(--deep);color:#eef0ff;padding:22px;margin-bottom:20px}
+.res .lvl{color:var(--gold);font:700 14px Inter;margin-bottom:6px}
+.res p{color:#d3d6f5;margin:10px 0 0}
+.axes{margin:18px 0 0;display:grid;gap:12px}
+.ax span{display:flex;justify-content:space-between;font-size:14px;color:#d3d6f5}
+.ax .bar{height:10px;border-radius:10px;background:#2e3370;overflow:hidden;margin-top:5px}
+.ax .bar i{display:block;height:100%;background:var(--gold)}
+ul.tips{padding-left:20px;margin:8px 0 0}ul.tips li{margin-bottom:8px}
+.note{font-size:14px;color:var(--soft);margin-top:12px}
+.sent{margin:22px 0 6px;padding:14px 16px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:600}.sent.ok{border-color:#1f9d55;color:#1f9d55}.sent.ko{border-color:#c0392b;color:#c0392b}
+@media (prefers-reduced-motion:reduce){.prog .bar i{transition:none}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="logo"><img src="/logo.png" alt="Logo JCLC – Jésus-Christ Le Chemin" width="72" height="72"></div>
+  <h1>Mon chemin de serviteur</h1>
+  <p>Un petit questionnaire pour l'équipe de louange. Il n'y a pas de bonne ou de mauvaise réponse : c'est une photo du moment, pour avancer ensemble. Environ 7 minutes.</p>
+  <svg viewBox="0 0 640 170" role="img" aria-label="Un chemin doré qui monte vers la lumière, jalonné d'étapes">
+    <defs>
+      <radialGradient id="sun" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#ffe7a3"/><stop offset="1" stop-color="#e3a51d" stop-opacity="0"/></radialGradient>
+      <linearGradient id="hill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2f6e"/><stop offset="1" stop-color="#171a45"/></linearGradient>
+    </defs>
+    <circle cx="560" cy="40" r="70" fill="url(#sun)"/>
+    <circle cx="560" cy="40" r="16" fill="#ffe7a3"/>
+    <path d="M0 120 Q160 70 320 110 T640 90 V170 H0Z" fill="url(#hill)"/>
+    <path d="M0 150 Q200 110 380 140 T640 128 V170 H0Z" fill="#0f1236"/>
+    <path d="M40 168 C140 150 120 128 230 126 S360 118 400 100 S500 66 556 52" fill="none" stroke="#e3a51d" stroke-width="7" stroke-linecap="round" stroke-dasharray="1 0"/>
+    <path d="M40 168 C140 150 120 128 230 126 S360 118 400 100 S500 66 556 52" fill="none" stroke="#ffe7a3" stroke-width="2" stroke-linecap="round" stroke-dasharray="2 10" opacity=".8"/>
+    <g fill="#171a45" stroke="#e3a51d" stroke-width="3">
+      <circle cx="126" cy="146" r="8"/><circle cx="262" cy="124" r="8"/><circle cx="400" cy="100" r="8"/>
+    </g>
+    <g fill="#c9cdf2" font-family="Inter,sans-serif" font-size="13">
+      <text x="98" y="128">Découvrir</text><text x="232" y="106">Marcher</text><text x="372" y="82">Servir</text>
+    </g>
+  </svg>
+</header>
+
+<main>
+<div class="prog" aria-live="polite"><div class="bar"><i id="pbar"></i></div><small id="ptxt"></small></div>
+
+<form id="f" novalidate>
+
+<section class="step" data-title="Qui je suis">
+  <h2>Qui je suis</h2>
+  <p class="intro">Le prénom est facultatif.</p>
+  <div class="q"><label for="prenom">Prénom</label><input type="text" id="prenom" name="prenom" autocomplete="given-name"></div>
+  <div class="q"><span class="t">Je sers comme…</span>
+    <label class="opt"><input type="radio" name="role" value="Chantre" required>Chantre</label>
+    <label class="opt"><input type="radio" name="role" value="Musicien">Musicien</label>
+    <label class="opt"><input type="radio" name="role" value="Chantre et musicien">Les deux</label>
+  </div>
+  <div class="q"><label for="instru">Mon instrument ou ma voix <span class="hint">Ex. : clavier, batterie, soprano, alto…</span></label><input type="text" id="instru" name="instru"></div>
+  <div class="q"><span class="t">Mon assemblée</span>
+    <label class="opt"><input type="radio" name="assemblee" value="Creil (Oise)">Creil (Oise)</label>
+    <label class="opt"><input type="radio" name="assemblee" value="Lognes">Lognes</label>
+    <label class="opt"><input type="radio" name="assemblee" value="Autre">Autre</label>
+  </div>
+  <div class="q"><span class="t">Où je pense en être avec ma voix ou mon instrument <span class="hint">1 = je débute · 5 = je suis à l'aise sur tout le répertoire</span></span>
+    <div class="scale" id="niveau"></div>
+  </div>
+</section>
+
+<section class="step" data-title="Ma préparation">
+  <h2>Ma préparation</h2>
+  <p class="intro">Répondez selon ce qui se passe le plus souvent, pas selon ce que vous aimeriez faire.</p>
+  <div id="qs1"></div>
+</section>
+
+<section class="step" data-title="Ma marche avec Dieu">
+  <h2>Ma marche avec Dieu</h2>
+  <p class="intro">La louange est d'abord un mode de vie avant d'être un moment du culte.</p>
+  <div id="qs2"></div>
+</section>
+
+<section class="step" data-title="Mes représentations">
+  <h2>Ce que la louange représente pour moi</h2>
+  <p class="intro">Tout est facultatif ici : quelques mots suffisent.</p>
+  <div class="q"><span class="t">Pour moi, la louange et l'adoration, c'est surtout… <span class="hint">Plusieurs choix possibles</span></span><div id="repr"></div></div>
+  <div class="q"><label for="louange">En une phrase, la louange c'est…</label><textarea id="louange" name="louange"></textarea></div>
+  <div class="q"><label for="adoration">En une phrase, l'adoration c'est…</label><textarea id="adoration" name="adoration"></textarea></div>
+  <div class="q"><label for="rmusicien">Le rôle du musicien, selon moi…</label><textarea id="rmusicien" name="rmusicien"></textarea></div>
+  <div class="q"><label for="rchantre">Le rôle du chantre, selon moi…</label><textarea id="rchantre" name="rchantre"></textarea></div>
+</section>
+
+<section class="step" data-title="Mes besoins">
+  <h2>Ce qui m'aiderait</h2>
+  <p class="intro">Chacun a sa famille, son travail, ses contraintes. On cherche des solutions réalistes.</p>
+  <div class="q"><span class="t">Ce qui me freine parfois <span class="hint">Plusieurs choix possibles</span></span><div id="freins"></div></div>
+  <div class="q"><span class="t">Combien de répétitions de groupe faut-il, selon moi, pour bien maîtriser une nouvelle liste de chants ?</span><div id="reps"></div></div>
+  <div class="q"><span class="t">Le temps de travail personnel que je peux réellement donner par semaine</span><div id="temps"></div></div>
+  <div class="q"><span class="t">Ce que j'attends ou ce qui m'aiderait <span class="hint">Plusieurs choix possibles</span></span><div id="attentes"></div></div>
+  <div class="q"><span class="t">Avez-vous besoin d'un soutien en ce moment ? <span class="hint">Plusieurs choix possibles. Seule Florence verra cette réponse.</span></span><div id="soutien"></div></div>
+  <div class="q"><label for="autre">Une autre attente, une idée, un besoin ?</label><textarea id="autre" name="autre"></textarea></div>
+</section>
+
+<p class="err" id="err" role="alert"></p>
+<div class="nav" id="nav">
+  <button type="button" class="sec" id="prev">Retour</button>
+  <button type="button" class="pri" id="next">Suivant</button>
+</div>
+</form>
+
+<section id="result" hidden>
+  <div class="res" id="rcard"></div>
+  <h3>Des petits pas réalistes pour avancer</h3>
+  <ul class="tips" id="tips"></ul>
+  <div class="sent" id="sent" role="status"></div>
+  <div class="nav"><button type="button" class="sec" id="restart">Modifier mes réponses</button><button type="button" class="pri" id="retry" hidden>Réessayer l'envoi</button></div>
+</section>
+</main>
+
+<script>
+{
+const Q1=[
+ {id:'p1',ax:'Préparation',t:'Quand la liste des chants est envoyée…',o:['Je la découvre souvent en arrivant en répétition','Je la regarde et j\'écoute les chants une ou deux fois','J\'écoute les chants plusieurs fois et je travaille paroles, structure et tonalités']},
+ {id:'p2',ax:'Préparation',t:'En arrivant en répétition, je connais…',o:['Peu de chants : je compte sur la répétition pour les apprendre','La plupart des mélodies, mais pas toujours les paroles ou la structure','Ma partie, les paroles, la structure et les enchaînements']},
+ {id:'t1',ax:'Travail de la voix ou de l\'instrument',t:'Je travaille ma voix ou mon instrument en dehors des répétitions…',o:['Rarement','Quelques fois par mois','Chaque semaine, même un peu']},
+ {id:'t2',ax:'Travail de la voix ou de l\'instrument',t:'Quand je bloque sur un passage difficile…',o:['J\'attends que ça se règle en répétition','J\'essaie seul quand j\'ai le temps','Je cherche une méthode, un tutoriel, ou je demande de l\'aide']}
+];
+const Q2=[
+ {id:'s1',ax:'Vie de prière et de méditation',t:'Avant de servir, je prends du temps pour prier et méditer les paroles des chants…',o:['Rarement','Parfois','Presque toujours']},
+ {id:'s2',ax:'Vie de prière et de méditation',t:'En dehors des cultes, l\'adoration dans ma vie…',o:['Se vit surtout le dimanche','J\'ai des moments avec Dieu, mais irréguliers','Fait partie de mon quotidien (prière, Parole, louange personnelle)']},
+ {id:'e1',ax:'Sensibilité au Saint-Esprit',t:'Pendant le culte…',o:['Je me concentre surtout sur l\'exécution des chants','J\'essaie d\'être attentif au Saint-Esprit et au conducteur, mais ce n\'est pas encore naturel','Je reste attentif au Saint-Esprit et au conducteur, et je peux m\'adapter (reprendre, prolonger, changer)']},
+ {id:'e2',ax:'Sensibilité au Saint-Esprit',t:'Ce qui me motive surtout à servir…',o:['L\'habitude, ou parce qu\'on me l\'a demandé','J\'aime chanter ou jouer, et l\'ambiance du groupe','Plaire à Dieu et amener le peuple dans sa présence']}
+];
+const REPR=['Chanter des chants','Exprimer mon amour et ma reconnaissance à Dieu','Un mode de vie','Un combat spirituel','Préparer les cœurs pour la Parole','Un moment d\'émotion','Servir l\'assemblée'];
+const FREINS={'Manque de temps (travail, famille…)':'Bloquez 2 créneaux de 15 minutes dans la semaine, et écoutez les chants dans les transports, en cuisinant ou en faisant le ménage.',
+'Manque de motivation':'Demandez un binôme dans l\'équipe pour vous encourager et faire le point une fois par semaine.',
+'Je ne comprends pas toujours ce qu\'on attend de moi':'N\'hésitez pas à demander au conducteur de louange ce qu\'il attend de votre partie pour chaque chant.',
+'Il me manque des outils (audios, grilles, paroles)':'Signalez-le : l\'équipe peut partager audios de travail, grilles d\'accords et paroles avec la liste.',
+'Je n\'ai pas de méthode pour travailler seul':'Méthode simple : 1) écouter, 2) lire et méditer les paroles, 3) chanter ou jouer avec l\'audio, 4) sans l\'audio.',
+'J\'ai besoin d\'accompagnement ou de renforcement':'Une formation vocale ou instrumentale, ou un accompagnement individuel, peut vous faire franchir un cap.',
+'La fatigue':'Préparez-vous en petites doses dès réception de la liste, plutôt que tout la veille.'};
+const REPS=['1 répétition','2 répétitions','3 répétitions','4 ou plus'];
+const TEMPS=['Moins de 30 min','30 min à 1 h','1 h à 2 h','Plus de 2 h'];
+const ATT=['Recevoir la liste plus tôt','Audios de travail par voix ou instrument','Grilles d\'accords, partitions, paroles','Formation vocale','Formation instrumentale','Temps de prière ensemble','Enseignements sur la louange et l\'adoration','Un binôme ou un accompagnement individuel'];
+const SOUTIEN=['Non, pas pour le moment','Oui, une relation d\'aide (écoute, accompagnement)','Oui, un soutien spirituel (prière, accompagnement pastoral)','Je préfère en parler en privé'];
+const NIV=['Je débute','Je me débrouille','Intermédiaire','À l\'aise','Avancé'];
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const qHtml=q=>`<div class="q"><span class="t">${esc(q.t)}</span>${q.o.map((o,i)=>`<label class="opt"><input type="radio" name="${q.id}" value="${i}">${esc(o)}</label>`).join('')}</div>`;
+const opts=(name,arr,type)=>arr.map(v=>`<label class="opt"><input type="${type}" name="${name}" value="${esc(v)}">${esc(v)}</label>`).join('');
+document.getElementById('qs1').innerHTML=Q1.map(qHtml).join('');
+document.getElementById('qs2').innerHTML=Q2.map(qHtml).join('');
+document.getElementById('repr').innerHTML=opts('repr',REPR,'checkbox');
+document.getElementById('freins').innerHTML=opts('freins',Object.keys(FREINS),'checkbox');
+document.getElementById('reps').innerHTML=opts('reps',REPS,'radio');
+document.getElementById('temps').innerHTML=opts('temps',TEMPS,'radio');
+document.getElementById('attentes').innerHTML=opts('attentes',ATT,'checkbox');
+document.getElementById('soutien').innerHTML=opts('soutien',SOUTIEN,'checkbox');
+document.getElementById('niveau').innerHTML=NIV.map((n,i)=>`<label><input type="radio" name="niveau" value="${i+1}"><b>${i+1}</b>${esc(n)}</label>`).join('');
+
+const f=document.getElementById('f');
+const steps=[...document.querySelectorAll('.step')];
+const pbar=document.getElementById('pbar'),ptxt=document.getElementById('ptxt'),err=document.getElementById('err');
+const prev=document.getElementById('prev'),next=document.getElementById('next');
+let cur=0;
+const val=n=>{const e=f.querySelector(`[name="${n}"]:checked`);return e?e.value:''};
+const vals=n=>[...f.querySelectorAll(`[name="${n}"]:checked`)].map(e=>e.value);
+const txt=n=>(f.elements[n]?.value||'').trim();
+
+function show(i){
+  cur=i;steps.forEach((s,k)=>s.classList.toggle('on',k===i));
+  pbar.style.width=((i)/steps.length*100)+'%';
+  ptxt.textContent=`Étape ${i+1} sur ${steps.length} · ${steps[i].dataset.title}`;
+  prev.style.visibility=i?'visible':'hidden';
+  next.textContent=i===steps.length-1?'Voir mon profil':'Suivant';
+  err.textContent='';window.scrollTo({top:0});
+}
+function check(i){
+  const need={0:['role'],1:Q1.map(q=>q.id),2:Q2.map(q=>q.id)}[i]||[];
+  const miss=need.filter(n=>!val(n));
+  if(miss.length){err.textContent=miss.length===1?'Il reste une question à cocher sur cette page.':`Il reste ${miss.length} questions à cocher sur cette page.`;return false}
+  return true;
+}
+prev.addEventListener('click',()=>show(Math.max(0,cur-1)));
+next.addEventListener('click',()=>{if(!check(cur))return;if(cur<steps.length-1)show(cur+1);else finish()});
+
+const PROFILS=[
+ {min:0,name:'Au départ du chemin',txt:'Vous avez à cœur de servir, et c\'est précieux. Pour l\'instant, la préparation se fait surtout sur place. Avec quelques habitudes simples, vous allez gagner en assurance et en liberté pour adorer.'},
+ {min:7,name:'En marche',txt:'Vous avez déjà de bonnes habitudes et le désir d\'aller plus loin. En rendant votre préparation plus régulière, vous pourrez vous laisser davantage conduire par le Saint-Esprit pendant le culte.'},
+ {min:12,name:'Serviteur bien engagé',txt:'Votre préparation et votre vie avec Dieu se nourrissent l\'une l\'autre. Continuez à creuser, et pensez à encourager ou accompagner un frère ou une sœur de l\'équipe.'}
+];
+let summary='',lastPayload=null;
+const SB_URL='https://wxfjbomtpohnnqymskhd.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4Zmpib210cG9obm5xeW1za2hkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NTc4OTQsImV4cCI6MjA5NjQzMzg5NH0.C3tl5MD_qaIVpJNs4-OT2eVFKNOlzfMXetHry_a7uAA';
+let SID;try{SID=localStorage.getItem('ql_sid')||(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());localStorage.setItem('ql_sid',SID)}catch(e){SID=String(Date.now())+Math.random()}
+async function send(){
+  const box=document.getElementById('sent'),retry=document.getElementById('retry');
+  box.className='sent';box.textContent='Envoi de vos réponses…';retry.hidden=true;
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/questionnaire_louange',{method:'POST',headers:{apikey:SB_KEY,Authorization:'Bearer '+SB_KEY,'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify(lastPayload)});
+    if(!r.ok)throw new Error(r.status);
+    box.className='sent ok';box.textContent='✓ Vos réponses ont bien été envoyées à Florence. Merci !';
+  }catch(e){box.className='sent ko';box.textContent='L\'envoi n\'a pas fonctionné. Vérifiez votre connexion internet puis réessayez.';retry.hidden=false}
+}
+document.getElementById('retry').addEventListener('click',send);
+function finish(){
+  const sout=vals('soutien').filter(v=>!v.startsWith('Non'));
+  const all=[...Q1,...Q2];
+  const score=all.reduce((s,q)=>s+(+val(q.id)||0),0);
+  const prof=PROFILS.filter(p=>score>=p.min).pop();
+  const axes={};all.forEach(q=>{axes[q.ax]=(axes[q.ax]||0)+(+val(q.id)||0)});
+  const prenom=txt('prenom');
+  document.getElementById('rcard').innerHTML=`<div class="lvl">${prenom?esc(prenom)+', votre':'Votre'} photo du moment</div><h2>${prof.name}</h2><p>${prof.txt}</p>
+  <div class="axes">${Object.entries(axes).map(([a,v])=>`<div class="ax"><span><span>${esc(a)}</span><span>${v} / 4</span></span><div class="bar"><i style="width:${v/4*100}%"></i></div></div>`).join('')}</div>
+  <p style="font-size:14px">Ce n'est pas une note : c'est un point de départ pour avancer ensemble.</p>`;
+  const fr=vals('freins');
+  const tips=fr.map(k=>FREINS[k]);
+  const weakest=Object.entries(axes).sort((a,b)=>a[1]-b[1])[0][0];
+  const byAx={'Préparation':'Dès que la liste arrive, écoutez chaque chant au moins trois fois avant la répétition.',
+   'Travail de la voix ou de l\'instrument':'Prévoyez 10 à 15 minutes de technique (voix ou instrument), deux fois par semaine.',
+   'Vie de prière et de méditation':'Prenez un chant par jour : lisez ses paroles, cherchez le verset qui va avec et priez-le.',
+   'Sensibilité au Saint-Esprit':'Pendant le culte, gardez un œil sur le conducteur et le cœur tourné vers Dieu, et demandez-lui de vous rendre sensible à sa direction.'};
+  tips.unshift(byAx[weakest]);
+  if(sout.length)tips.unshift('Merci pour votre confiance : vous serez recontacté(e) en toute discrétion pour le soutien demandé.');
+  document.getElementById('tips').innerHTML=[...new Set(tips)].slice(0,4).map(t=>`<li>${esc(t)}</li>`).join('');
+
+  const payload={session_id:SID,prenom:prenom||null,role:val('role'),instrument:txt('instru')||null,assemblee:val('assemblee')||null,
+   niveau:val('niveau')?+val('niveau'):null,profil:prof.name,score,axes,
+   reponses:Object.fromEntries(all.map(q=>[q.id,{question:q.t,reponse:q.o[+val(q.id)]}])),
+   representations:vals('repr'),louange:txt('louange')||null,adoration:txt('adoration')||null,role_musicien:txt('rmusicien')||null,role_chantre:txt('rchantre')||null,
+   freins:vals('freins'),repetitions:val('reps')||null,temps_perso:val('temps')||null,attentes:vals('attentes'),soutien:vals('soutien'),autre:txt('autre')||null};
+  lastPayload=payload;
+  const L=[];
+  L.push('*Questionnaire louange · Mon chemin de serviteur*');
+  L.push(`Prénom : ${prenom||'(non précisé)'}`);
+  L.push(`Rôle : ${val('role')}${txt('instru')?' · '+txt('instru'):''}`);
+  if(val('assemblee'))L.push(`Assemblée : ${val('assemblee')}`);
+  if(val('niveau'))L.push(`Niveau ressenti : ${val('niveau')}/5 (${NIV[val('niveau')-1]})`);
+  L.push(`Profil : ${prof.name} (${score}/16)`);
+  Object.entries(axes).forEach(([a,v])=>L.push(`- ${a} : ${v}/4`));
+  L.push('');
+  all.forEach(q=>L.push(`${q.t} → ${q.o[+val(q.id)]}`));
+  L.push('');
+  if(vals('repr').length)L.push(`Louange/adoration, c'est surtout : ${vals('repr').join(', ')}`);
+  [['louange','La louange c\'est'],['adoration','L\'adoration c\'est'],['rmusicien','Rôle du musicien'],['rchantre','Rôle du chantre']].forEach(([n,l])=>{if(txt(n))L.push(`${l} : ${txt(n)}`)});
+  if(fr.length)L.push(`Freins : ${fr.join(', ')}`);
+  if(val('reps'))L.push(`Répétitions nécessaires : ${val('reps')}`);
+  if(val('temps'))L.push(`Temps perso par semaine : ${val('temps')}`);
+  if(vals('attentes').length)L.push(`Attentes : ${vals('attentes').join(', ')}`);
+  L.push(`Besoin de soutien : ${sout.length?sout.join(', '):'non'}`);
+  if(txt('autre'))L.push(`Autre : ${txt('autre')}`);
+  summary=L.join('\n');
+  payload.resume=summary;
+  send();
+  f.hidden=true;document.querySelector('.prog').hidden=true;
+  document.getElementById('result').hidden=false;window.scrollTo({top:0});
+}
+document.getElementById('restart').addEventListener('click',()=>{
+  document.getElementById('result').hidden=true;f.hidden=false;document.querySelector('.prog').hidden=false;show(0);
+});
+show(0);
+}
+</script>
+</body>
+</html>
